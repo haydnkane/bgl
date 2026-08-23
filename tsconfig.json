@@ -2,6 +2,11 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
+    // TS 6 no longer picks up @types automatically here; jest's globals are needed by *.test.ts.
+    "types": [
+      "jest",
+      "node"
+    ],
     "paths": {
       "@/*": [
         "./src/*"
@@ -11,6 +16,9 @@
       ]
     }
   },
+  "exclude": [
+    "supabase"
+  ],
   "include": [
     "**/*.ts",
     "**/*.tsx",

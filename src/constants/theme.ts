@@ -14,6 +14,10 @@ export const Colors = {
     backgroundElement: '#F0F0F3',
     backgroundSelected: '#E0E1E6',
     textSecondary: '#60646C',
+    border: '#D8D9E0',
+    tint: '#2F6FED',
+    tintText: '#ffffff',
+    danger: '#D93036',
   },
   dark: {
     text: '#ffffff',
@@ -21,6 +25,10 @@ export const Colors = {
     backgroundElement: '#212225',
     backgroundSelected: '#2E3135',
     textSecondary: '#B0B4BA',
+    border: '#35383D',
+    tint: '#5C90FF',
+    tintText: '#0B1220',
+    danger: '#FF6369',
   },
 } as const;
 
@@ -63,3 +71,23 @@ export const Spacing = {
 
 export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
 export const MaxContentWidth = 800;
+
+export const Radius = {
+  sm: 6,
+  md: 10,
+  lg: 16,
+  pill: 999,
+} as const;
+
+/** Palette offered when creating a label. Readable on both light and dark backgrounds. */
+export const LabelColors = [
+  '#E5484D',
+  '#E5892B',
+  '#F0C000',
+  '#46A758',
+  '#12A594',
+  '#2F6FED',
+  '#8E4EC6',
+  '#E93D82',
+  '#7C7F86',
+] as const;

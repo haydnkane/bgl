@@ -1,15 +1,12 @@
 {
   "expo": {
-    "name": "boardgame-shelf",
+    "name": "Board Game Shelf",
     "slug": "boardgame-shelf",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "boardgameshelf",
     "userInterfaceStyle": "automatic",
-    "ios": {
-      "icon": "./assets/expo.icon"
-    },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",

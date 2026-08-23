@@ -1,56 +1,114 @@
-# Welcome to your Expo app 👋
+# Board Game Shelf
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A personal board game collection tracker that runs in the browser and as an Android app from one
+Expo / React Native codebase, backed by a Supabase project so both see the same shelf.
 
-## Get started
+- Add, edit and delete games
+- Import cover art and metadata from BoardGameGeek
+- Tag games with your own colour-coded labels
+- Search by name, filter by label (match any or all), sort by name / year / rating / date added
 
-1. Install dependencies
+## Stack
 
-   ```bash
-   npm install
-   ```
+| Piece | What |
+|---|---|
+| App | Expo SDK 57 (React Native 0.86, React 19.2), TypeScript, expo-router |
+| Web | react-native-web, static rendering (`app.json` → `web.output: "static"`) |
+| Data | Supabase Postgres, row level security per user |
+| Server state | TanStack Query |
+| BGG | Supabase Edge Function proxy (`supabase/functions/bgg`) |
 
-2. Start the app
+## Setup
 
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+### 1. Install
 
 ```bash
-npm run reset-project
+npm install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### 2. Supabase project
 
-### Other setup steps
+Create a free project at [supabase.com](https://supabase.com), then:
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```bash
+cp .env.example .env.local
+```
 
-## Learn more
+Fill in `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` from
+**Project Settings → Data API**. The anon key is meant to be public — row level security is what keeps
+the collection private, which is why the RLS check below matters.
 
-To learn more about developing your project with Expo, look at the following resources:
+Apply the schema:
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```bash
+npx supabase link --project-ref <your-project-ref>
+npx supabase db push
+```
 
-## Join the community
+Then create your user under **Authentication → Users**, and turn off public sign-ups under
+**Authentication → Sign In / Providers** so nobody else can register.
 
-Join our community of developers creating universal apps.
+### 3. Run it
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```bash
+npm run web        # browser
+npm run android    # Pixel emulator or a device running Expo Go
+```
+
+### 4. BoardGameGeek (optional)
+
+The app works fully without this — you can paste any image URL by hand. To enable BGG search and
+import, note that BGG's XML API now requires a registered bearer token, and sends no CORS headers.
+The edge function solves both.
+
+1. Register for a non-commercial XML API token at
+   [BoardGameGeek](https://boardgamegeek.com/using_the_xml_api).
+2. Store it and deploy the proxy:
+
+```bash
+npx supabase secrets set BGG_TOKEN=your-token
+npx supabase functions deploy bgg
+```
+
+Until that is done, **Search BGG** shows a readable error and **Enter manually** still works.
+
+## Checks
+
+```bash
+npm test           # unit tests for the search/filter/sort logic
+npm run typecheck
+npm run lint
+```
+
+## Android APK
+
+```bash
+npx eas build -p android --profile preview
+```
+
+## Layout
+
+```
+src/
+  app/                  routes (expo-router)
+    (tabs)/index.tsx    library: search, filter, sort
+    (tabs)/labels.tsx   manage labels
+    game/new.tsx        add — BGG search or manual entry
+    game/[id].tsx       detail, edit, delete, refresh from BGG
+  components/           GameCard, GameForm, LabelPicker, chips, inputs
+  lib/
+    supabase.ts         client (platform-aware auth storage)
+    filter.ts           pure search/filter/sort — unit tested
+    bgg.ts              typed client for the edge function
+    queries/            TanStack Query hooks
+supabase/
+  migrations/           schema, indexes, RLS policies
+  functions/bgg/        BoardGameGeek proxy (Deno)
+```
+
+## Notes
+
+- The whole library is fetched once and filtered in memory. That keeps search instant and works
+  offline; if the collection ever passes a few thousand games, move the search server-side in
+  `lib/queries/games.ts`.
+- BGG rate limits apply even with a token, so search input is debounced by 400ms.
