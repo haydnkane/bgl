@@ -18,6 +18,9 @@ Expo / React Native codebase, backed by a Supabase project so both see the same 
 | Server state | TanStack Query |
 | BGG | Supabase Edge Function proxy (`supabase/functions/bgg`) |
 
+> **Picking this up fresh?** Read [HANDOVER.md](HANDOVER.md) — it covers current status, the
+> credentials still needed, and what to do next.
+
 ## Setup
 
 ### 1. Install
