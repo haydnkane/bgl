@@ -50,7 +50,13 @@ jobs:
 
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Pinned, not "latest". Resolving "latest" makes an unauthenticated GitHub
+          # API call from the runner, which fails outright with "rate limit exceeded"
+          # when the shared runner IP has already spent the hourly allowance — a
+          # deploy that touches the live database should not hinge on that. Bump it
+          # deliberately; `npx supabase --version` locally is the one to match.
+          # Quoted so a future two-part version is not read as a YAML float.
+          version: "2.116.0"
 
       # Print what is about to be applied before applying it, so the run log
       # records the change even when the migration turns out to be a mistake.
