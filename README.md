@@ -105,6 +105,43 @@ npm run typecheck
 npm run lint
 ```
 
+## Deployment
+
+Pushing to `main` builds the web app and publishes it to GitHub Pages at
+<https://haydnkane.github.io/bgl>, applies any new Supabase migrations, and redeploys the `bgg`
+edge function. Pull requests run the checks only. See [.github/workflows/](.github/workflows/).
+
+The site is exported as a single-page app (`web.output: "single"`) served from the `/bgl` subpath
+(`experiments.baseUrl`). CI copies `index.html` to `404.html` so that a cold visit to a deep link
+such as `/join/<token>` boots the router rather than showing GitHub's 404 page — without that step
+invite links are broken.
+
+### Repository configuration
+
+Under **Settings → Pages**, set the source to **GitHub Actions**. Then add the following under
+**Settings → Secrets and variables → Actions**.
+
+| Name | Kind | Value |
+|---|---|---|
+| `EXPO_PUBLIC_SUPABASE_URL` | Secret | Your project URL |
+| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Secret | The anon key |
+| `SUPABASE_DB_URL` | Secret | Postgres connection string, from Dashboard → Connect |
+| `SUPABASE_ACCESS_TOKEN` | Secret | Personal access token, from Account → Access Tokens |
+| `EXPO_PUBLIC_WEB_URL` | Variable | `https://haydnkane.github.io/bgl` |
+| `SUPABASE_PROJECT_REF` | Variable | Your project ref |
+
+The two `EXPO_PUBLIC_` values are stored as secrets for tidiness, but they are compiled into the
+JS bundle and readable by anyone who loads the site. That is expected — the anon key is public by
+design and row level security is what protects the data. `SUPABASE_DB_URL` and
+`SUPABASE_ACCESS_TOKEN` are genuinely secret and must never reach the client.
+
+### Migrations
+
+The deploy workflow runs `supabase db push` against the live database on every push to `main`. It
+lists pending migrations before applying them, so the run log records what changed. To require
+sign-off first, add yourself as a required reviewer on the `production` environment under
+**Settings → Environments**; the job then waits for approval before touching the database.
+
 ## Android APK
 
 ```bash

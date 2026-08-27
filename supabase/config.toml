@@ -1,0 +1,7 @@
+# Minimal config so the Supabase CLI can locate the project root in CI.
+# Local-development settings are intentionally omitted; the defaults are fine.
+project_id = "blrqoobsbjbqmnwebaho"
+
+[functions.bgg]
+# The app invokes this with the caller's session, so keep JWT verification on.
+verify_jwt = true
