@@ -60,12 +60,12 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
 
       - name: Apply migrations
-        run: supabase db push --db-url "$SUPABASE_DB_URL" --include-all
+        run: supabase db push --db-url "$SUPABASE_DB_URL"
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
 
       - name: Deploy bgg edge function
-        run: supabase functions deploy bgg --project-ref "$PROJECT_REF"
+        run: supabase functions deploy bgg --use-api --project-ref "$PROJECT_REF"
         env:
           PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
