@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Alert, FlatList, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { Button } from '@/components/button';
 import { EmptyState } from '@/components/empty-state';
@@ -8,21 +8,11 @@ import { Field } from '@/components/field';
 import { ThemedText } from '@/components/themed-text';
 import { LabelColors, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { confirmDestructive } from '@/lib/confirm';
+import { useLibrary } from '@/lib/library';
 import { useAddLabel, useDeleteLabel, useLabels, useUpdateLabel } from '@/lib/queries/labels';
 import { useGames } from '@/lib/queries/games';
 import type { Label } from '@/lib/types';
-
-/** Alert.alert is a no-op on web, so confirmation falls back to window.confirm there. */
-function confirm(title: string, message: string, onConfirm: () => void) {
-  if (Platform.OS === 'web') {
-    if (window.confirm(`${title}\n\n${message}`)) onConfirm();
-    return;
-  }
-  Alert.alert(title, message, [
-    { text: 'Cancel', style: 'cancel' },
-    { text: 'Delete', style: 'destructive', onPress: onConfirm },
-  ]);
-}
 
 function ColorSwatches({ value, onChange }: { value: string; onChange: (color: string) => void }) {
   const theme = useTheme();
@@ -60,7 +50,7 @@ function LabelRow({ label, usageCount }: { label: Label; usageCount: number }) {
   };
 
   const remove = () => {
-    confirm(
+    confirmDestructive(
       `Delete "${label.name}"?`,
       usageCount > 0
         ? `It will be removed from ${usageCount} game${usageCount === 1 ? '' : 's'}. The games themselves are kept.`
@@ -108,8 +98,11 @@ function LabelRow({ label, usageCount }: { label: Label; usageCount: number }) {
 
 export default function LabelsScreen() {
   const theme = useTheme();
-  const { data: labels = [], isLoading } = useLabels();
+  const { loading: libraryLoading } = useLibrary();
+  const { data: labels = [], isLoading: labelsLoading } = useLabels();
   const { data: games = [] } = useGames();
+  // The labels query has not run until a shelf is known — see (tabs)/index.tsx.
+  const isLoading = libraryLoading || labelsLoading;
   const addLabel = useAddLabel();
 
   const [newName, setNewName] = useState('');

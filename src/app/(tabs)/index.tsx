@@ -13,6 +13,7 @@ import { usePersistentFilter } from '@/hooks/use-persistent-filter';
 import { useTheme } from '@/hooks/use-theme';
 import { signOut } from '@/lib/auth';
 import { applyFilters } from '@/lib/filter';
+import { useLibrary } from '@/lib/library';
 import { useGames } from '@/lib/queries/games';
 import { useLabels } from '@/lib/queries/labels';
 
@@ -22,8 +23,13 @@ export default function LibraryScreen() {
   const { width } = useWindowDimensions();
   const [filter, setFilter] = usePersistentFilter();
 
-  const { data: games = [], isLoading, isRefetching, refetch, error } = useGames();
+  const { active, loading: libraryLoading } = useLibrary();
+  const { data: games = [], isLoading: gamesLoading, isRefetching, refetch, error } = useGames();
   const { data: labels = [] } = useLabels();
+
+  // Until a shelf is known the games query has not run at all, so "no games" would be a
+  // lie rather than an empty state.
+  const isLoading = libraryLoading || gamesLoading;
 
   const visible = useMemo(() => applyFilters(games, filter), [games, filter]);
 
@@ -44,19 +50,38 @@ export default function LibraryScreen() {
         ListHeaderComponent={
           <View style={styles.header}>
             <View style={styles.titleRow}>
-              <ThemedText type="smallBold" themeColor="textSecondary">
-                {games.length === 0
-                  ? 'No games yet'
-                  : isFiltered
-                    ? `${visible.length} of ${games.length} games`
-                    : `${games.length} game${games.length === 1 ? '' : 's'}`}
-              </ThemedText>
+              <Pressable
+                onPress={() => router.push('/shelf')}
+                accessibilityLabel="Shelf and sharing"
+                hitSlop={8}
+                style={styles.shelfButton}>
+                <ThemedText type="smallBold" numberOfLines={1}>
+                  {active?.library.name ?? 'Shelf'}
+                </ThemedText>
+                {active && active.member_count > 1 ? (
+                  <>
+                    <Ionicons name="people" size={14} color={theme.textSecondary} />
+                    <ThemedText type="small" themeColor="textSecondary">
+                      {active.member_count}
+                    </ThemedText>
+                  </>
+                ) : null}
+                <Ionicons name="chevron-down" size={14} color={theme.textSecondary} />
+              </Pressable>
               <Pressable onPress={signOut} hitSlop={8}>
                 <ThemedText type="small" themeColor="textSecondary">
                   Sign out
                 </ThemedText>
               </Pressable>
             </View>
+
+            <ThemedText type="smallBold" themeColor="textSecondary">
+              {games.length === 0
+                ? 'No games yet'
+                : isFiltered
+                  ? `${visible.length} of ${games.length} games`
+                  : `${games.length} game${games.length === 1 ? '' : 's'}`}
+            </ThemedText>
 
             <SearchBar value={filter.search} onChange={(search) => setFilter({ ...filter, search })} />
             <FilterSortBar labels={labels} state={filter} onChange={setFilter} />
@@ -122,6 +147,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  shelfButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+    flexShrink: 1,
   },
   column: {
     gap: Spacing.two,

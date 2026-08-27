@@ -7,6 +7,7 @@ const HEAVY = 'label-heavy';
 function makeGame(overrides: Partial<GameWithLabels> & { name: string }): GameWithLabels {
   return {
     id: overrides.name.toLowerCase().replace(/\s+/g, '-'),
+    library_id: 'library-1',
     user_id: 'user-1',
     bgg_id: null,
     image_url: null,

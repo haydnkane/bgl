@@ -37,6 +37,14 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
+/**
+ * The signed-in user's id, or null. Query keys are scoped to it so that a change of
+ * session is a change of cache key — see lib/queries/games.ts.
+ */
+export function useUserId() {
+  return useContext(AuthContext).session?.user.id ?? null;
+}
+
 export async function signOut() {
   await supabase.auth.signOut();
 }

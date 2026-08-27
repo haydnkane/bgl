@@ -50,6 +50,30 @@ function json(body: unknown, status = 200) {
   });
 }
 
+/**
+ * BGG double-encodes its text: the XML itself carries `&amp;#039;`, so the parser's own
+ * entity pass leaves a literal `&#039;` behind. Undo that second layer.
+ */
+function decodeEntities(value: string): string {
+  return value
+    .replace(/&#(\d+);/g, (match, code) => fromCodePoint(Number(code), match))
+    .replace(/&#x([0-9a-f]+);/gi, (match, code) => fromCodePoint(parseInt(code, 16), match))
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+    // Last, so decoding a reference never manufactures a fresh entity out of its neighbours.
+    .replace(/&amp;/g, '&');
+}
+
+/** Leaves malformed references (out of range, lone surrogates) as written. */
+function fromCodePoint(code: number, original: string): string {
+  if (!Number.isInteger(code) || code < 0 || code > 0x10ffff) return original;
+  if (code >= 0xd800 && code <= 0xdfff) return original;
+  return String.fromCodePoint(code);
+}
+
 /** Reads `value="123"` style attributes, which BGG uses for nearly every scalar. */
 function attrNumber(node: unknown): number | null {
   const raw = (node as { '@_value'?: string })?.['@_value'];
@@ -62,11 +86,16 @@ function attrText(node: unknown): string | null {
   return (node as { '@_value'?: string })?.['@_value'] ?? null;
 }
 
+function decodeOptional(value: string | null): string | null {
+  return value === null ? null : decodeEntities(value);
+}
+
 /** Picks the primary title; BGG lists alternate-language names alongside it. */
 function primaryName(item: Record<string, unknown>): string {
   const names = (item.name ?? []) as { '@_type'?: string; '@_value'?: string }[];
   const primary = names.find((n) => n['@_type'] === 'primary') ?? names[0];
-  return primary?.['@_value'] ?? 'Unknown';
+  const value = primary?.['@_value'];
+  return value ? decodeEntities(value) : 'Unknown';
 }
 
 async function callBgg(path: string, token: string): Promise<Record<string, unknown>> {
@@ -128,7 +157,9 @@ async function thing(id: string, token: string): Promise<BggGameDetail> {
     min_players: attrNumber(item.minplayers),
     max_players: attrNumber(item.maxplayers),
     playing_time: attrNumber(item.playingtime),
-    description: typeof item.description === 'string' ? item.description : attrText(item.description),
+    description: decodeOptional(
+      typeof item.description === 'string' ? item.description : attrText(item.description)
+    ),
   };
 }
 

@@ -44,3 +44,6 @@ example
 
 # local secrets
 .env.local
+
+# supabase cli scratch
+supabase/.temp/

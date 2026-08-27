@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/button';
 import { EmptyState } from '@/components/empty-state';
@@ -9,22 +9,9 @@ import { ThemedText } from '@/components/themed-text';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { bggDetailToGameInput, fetchBggGame } from '@/lib/bgg';
+import { confirmDestructive } from '@/lib/confirm';
 import { useDeleteGame, useGame, useGames, useUpdateGame } from '@/lib/queries/games';
 import type { GameWithLabels } from '@/lib/types';
-
-/** Alert.alert is a no-op on web, so confirmation falls back to window.confirm there. */
-function confirmDelete(name: string, onConfirm: () => void) {
-  const title = `Delete "${name}"?`;
-  const message = 'This removes it from your shelf for good.';
-  if (Platform.OS === 'web') {
-    if (window.confirm(`${title}\n\n${message}`)) onConfirm();
-    return;
-  }
-  Alert.alert(title, message, [
-    { text: 'Cancel', style: 'cancel' },
-    { text: 'Delete', style: 'destructive', onPress: onConfirm },
-  ]);
-}
 
 export default function GameDetailScreen() {
   const theme = useTheme();
@@ -74,10 +61,14 @@ export default function GameDetailScreen() {
   };
 
   const remove = () => {
-    confirmDelete(game.name, () => {
-      deleteGame.mutate(game.id);
-      router.back();
-    });
+    confirmDestructive(
+      `Delete "${game.name}"?`,
+      'This removes it from the shelf for good, for everyone on it.',
+      () => {
+        deleteGame.mutate(game.id);
+        router.back();
+      }
+    );
   };
 
   /** Pulls fresh metadata from BGG into the form without saving it yet. */

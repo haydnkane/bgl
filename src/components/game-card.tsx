@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Link } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -13,16 +14,12 @@ type Props = {
   labels: Label[];
 };
 
-/** Builds the "2-4 players · 90 min" line, skipping anything we don't know. */
+/** Builds the "2-4" player range, or null when the player count is unknown. */
 function metaLine(game: GameWithLabels): string | null {
-  const parts: string[] = [];
-  if (game.min_players || game.max_players) {
-    const min = game.min_players ?? game.max_players;
-    const max = game.max_players ?? game.min_players;
-    parts.push(min === max ? `${min} player${min === 1 ? '' : 's'}` : `${min}-${max} players`);
-  }
-  if (game.playing_time) parts.push(`${game.playing_time} min`);
-  return parts.length ? parts.join(' · ') : null;
+  if (!game.min_players && !game.max_players) return null;
+  const min = game.min_players ?? game.max_players;
+  const max = game.max_players ?? game.min_players;
+  return min === max ? `${min}` : `${min}-${max}`;
 }
 
 export function GameCard({ game, labels }: Props) {
@@ -54,9 +51,12 @@ export function GameCard({ game, labels }: Props) {
             {game.name}
           </ThemedText>
 
-          <ThemedText type="small" themeColor="textSecondary">
-            {[game.year_published, meta].filter(Boolean).join(' · ') || ' '}
-          </ThemedText>
+          <View style={styles.meta}>
+            {meta ? <Ionicons name="person" size={13} color={theme.textSecondary} /> : null}
+            <ThemedText type="small" themeColor="textSecondary">
+              {meta ?? ' '}
+            </ThemedText>
+          </View>
 
           {game.rating ? (
             <ThemedText type="small" themeColor="textSecondary">
@@ -104,6 +104,11 @@ const styles = StyleSheet.create({
   },
   name: {
     fontWeight: '700',
+  },
+  meta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
   },
   labels: {
     flexDirection: 'row',

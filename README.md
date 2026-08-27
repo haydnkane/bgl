@@ -7,6 +7,7 @@ Expo / React Native codebase, backed by a Supabase project so both see the same 
 - Import cover art and metadata from BoardGameGeek
 - Tag games with your own colour-coded labels
 - Search by name, filter by label (match any or all), sort by name / year / rating / date added
+- Share a shelf by link: whoever joins can add, edit and remove games alongside you
 
 ## Stack
 
@@ -14,7 +15,7 @@ Expo / React Native codebase, backed by a Supabase project so both see the same 
 |---|---|
 | App | Expo SDK 57 (React Native 0.86, React 19.2), TypeScript, expo-router |
 | Web | react-native-web, static rendering (`app.json` → `web.output: "static"`) |
-| Data | Supabase Postgres, row level security per user |
+| Data | Supabase Postgres, row level security per shelf membership |
 | Server state | TanStack Query |
 | BGG | Supabase Edge Function proxy (`supabase/functions/bgg`) |
 
@@ -48,8 +49,11 @@ npx supabase link --project-ref <your-project-ref>
 npx supabase db push
 ```
 
-Then create your user under **Authentication → Users**, and turn off public sign-ups under
-**Authentication → Sign In / Providers** so nobody else can register.
+Then create your user under **Authentication → Users**.
+
+Leave public sign-ups **on** under **Authentication → Sign In / Providers**: people you invite to a
+shared shelf need to be able to create an account. An account on its own reveals nothing — a new
+user gets an empty shelf of their own, and only an invite link grants access to yours.
 
 ### 3. Run it
 
@@ -58,7 +62,25 @@ npm run web        # browser
 npm run android    # Pixel emulator or a device running Expo Go
 ```
 
-### 4. BoardGameGeek (optional)
+### 4. Sharing a shelf
+
+A *shelf* is the unit of ownership: games and labels belong to one, and people are members of it.
+Everyone gets their own shelf on first sign-in, and can be on any number of shared ones.
+
+1. Tap the shelf name at the top of the library, then **New link**. It is copied to the clipboard.
+2. Send it. The recipient sees the shelf's name and how many people are on it, signs in or creates
+   an account, and joins — the link survives the trip through sign-up.
+3. Everyone on a shelf can add, edit and delete its games and labels. Owners can additionally
+   rename it, remove people, and revoke links.
+
+Revoking a link stops anyone new joining with it; it does not remove people who already have. Take
+them off under **People**. The token in a link is the only thing protecting the shelf, so treat it
+like a key — links can be set to expire after 7 days, or never.
+
+Set `EXPO_PUBLIC_WEB_URL` to your deployed web address so links created on the phone open in a
+browser for people who do not have the app.
+
+### 5. BoardGameGeek (optional)
 
 The app works fully without this — you can paste any image URL by hand. To enable BGG search and
 import, note that BGG's XML API now requires a registered bearer token, and sends no CORS headers.
@@ -98,9 +120,13 @@ src/
     (tabs)/labels.tsx   manage labels
     game/new.tsx        add — BGG search or manual entry
     game/[id].tsx       detail, edit, delete, refresh from BGG
+    shelf.tsx           members, invite links, switching shelves
+    join/[token].tsx    invite landing page — reachable signed out
   components/           GameCard, GameForm, LabelPicker, chips, inputs
   lib/
     supabase.ts         client (platform-aware auth storage)
+    library.tsx         which shelf is active, and remembering it
+    invites.ts          invite URLs, and holding a token through sign-up
     filter.ts           pure search/filter/sort — unit tested
     bgg.ts              typed client for the edge function
     queries/            TanStack Query hooks
@@ -115,3 +141,5 @@ supabase/
   offline; if the collection ever passes a few thousand games, move the search server-side in
   `lib/queries/games.ts`.
 - BGG rate limits apply even with a token, so search input is debounced by 400ms.
+- Joining a shelf goes through `redeem_library_invite()` rather than a table write: there is no
+  insert policy on `library_members` at all, so a valid token is the only way in.
