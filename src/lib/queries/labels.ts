@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { useActiveLibraryId } from '@/lib/library';
+import { useLibraryId } from '@/lib/library';
 import { gamesKey } from '@/lib/queries/games';
 import { supabase } from '@/lib/supabase';
 import type { Label } from '@/lib/types';
@@ -11,7 +11,7 @@ export const labelsKey = ['labels'] as const;
 export const libraryLabelsKey = (libraryId: string) => [...labelsKey, libraryId] as const;
 
 export function useLabels() {
-  const libraryId = useActiveLibraryId();
+  const libraryId = useLibraryId();
   return useQuery({
     queryKey: libraryLabelsKey(libraryId ?? 'no-library'),
     // Never query before a shelf is known: RLS would return [] and that would be cached.
@@ -30,10 +30,10 @@ export function useLabels() {
 
 export function useAddLabel() {
   const queryClient = useQueryClient();
-  const libraryId = useActiveLibraryId();
+  const libraryId = useLibraryId();
   return useMutation({
     mutationFn: async ({ name, color }: { name: string; color: string }) => {
-      if (!libraryId) throw new Error('No shelf selected.');
+      if (!libraryId) throw new Error('You are not on the shelf.');
       const { data, error } = await supabase
         .from('labels')
         .insert({ name: name.trim(), color, library_id: libraryId })
@@ -48,7 +48,7 @@ export function useAddLabel() {
 
 export function useUpdateLabel() {
   const queryClient = useQueryClient();
-  const libraryId = useActiveLibraryId();
+  const libraryId = useLibraryId();
   return useMutation({
     mutationFn: async ({ id, name, color }: { id: string; name?: string; color?: string }) => {
       const patch: { name?: string; color?: string } = {};
@@ -67,7 +67,7 @@ export function useUpdateLabel() {
 
 export function useDeleteLabel() {
   const queryClient = useQueryClient();
-  const libraryId = useActiveLibraryId();
+  const libraryId = useLibraryId();
   return useMutation({
     mutationFn: async (id: string) => {
       // game_labels rows cascade away, so games are simply untagged.

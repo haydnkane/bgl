@@ -191,7 +191,7 @@ Test data was created and then removed through the UI; all three tables are back
 
 ---
 
-## Shared shelves (added 2026-08-25, unapplied)
+## Shared shelves (added 2026-08-25) — superseded, see "One shelf" below
 
 A *library* — "shelf" in the UI — is now the unit of ownership. Games and labels carry a
 `library_id`; people are rows in `library_members`; RLS asks "is the caller a member of this
@@ -213,6 +213,45 @@ New files: `supabase/migrations/0002_shared_libraries.sql`, `0003_library_invite
 **Verified:** `tsc --noEmit` clean, `expo lint` clean, 16/16 jest, `expo export -p web` builds all 11
 routes. **Not verified:** anything involving the database — see below.
 
+---
+
+## One shelf (added 2026-08-27)
+
+The multi-shelf model was a misread of the requirement. There is **one collection**, shared by the
+household, and there is no way to make a second: `libraries` has a single-valued `singleton` column
+with a unique index on it, so a second row cannot be inserted. Shelf creation, switching and leaving
+are gone, along with the whole invite-link system.
+
+`0005_single_shelf.sql` collapses whatever exists onto one shelf. The busiest shelf survives — so
+the surviving shelf keeps *that* shelf's name, which may want renaming afterwards. Labels that share
+a name across shelves are merged into one, and `game_labels` is rebuilt rather than updated in place,
+because remapping label ids collides with join rows that already exist.
+
+**Access is an allowlist of usernames** (`allowed_users`), not links. An owner adds a username; that
+person signs up with it; `join_shelf()` claims the entry and adds them. There is still no insert
+policy on `library_members` — `join_shelf()` is the only door. Deleting an allowlist entry fires a
+trigger that drops the person's membership, so the list is the single control over access.
+
+**Usernames instead of email.** Supabase Auth needs an address, so a username becomes
+`<name>@shelf.invalid` (RFC 2606 — the domain can never exist). **Confirm email must be off** in the
+dashboard or account creation hangs waiting for a mail that cannot arrive. The domain constant lives
+in `public.username_domain()` and in `USERNAME_DOMAIN` (`src/lib/username.ts`) and the two must
+agree. Accounts made before this change still sign in with their full email address; both forms
+resolve to the same allowlist key.
+
+**Bootstrap.** On a fresh project nobody can be on the allowlist, so `join_shelf()` gives the shelf
+to the first account that signs in, as owner. It can never fire again once anyone is a member.
+
+New: `0005_single_shelf.sql`, `src/lib/username.ts`, `src/components/locked-out.tsx`.
+Deleted: `src/lib/invites.ts`, `src/app/join/[token].tsx`, and `EXPO_PUBLIC_WEB_URL`.
+
+**Verified:** all five migrations applied in order against a real Postgres (PGlite) over a seeded
+three-shelf / four-game / four-label database — the collapse, the label merge, the duplicate
+`game_labels` fold, the singleton index refusing a second shelf, `join_shelf()` accepting and
+refusing, the revoke trigger, the fresh-project bootstrap, and the RLS policies under the
+`authenticated` role. Plus `tsc --noEmit`, `expo lint`, 16/16 jest.
+**Not verified:** the app against the live Supabase project, and anything on Android.
+
 ## Not yet done
 
 1. **Apply migrations 0002 and 0003.** Nothing has touched the live database; the app will fail
@@ -227,16 +266,18 @@ routes. **Not verified:** anything involving the database — see below.
    Both migrations are written to be re-runnable, and 0002 backfills a personal shelf for every
    existing `auth.users` row and moves their games and labels into it.
 
-2. **Turn public sign-ups back on** under **Authentication → Sign In / Providers**. Invited people
-   cannot make an account otherwise, and the sign-up form reports exactly that. A new account is not
-   a way in: it lands on its own empty shelf, and only an invite token grants access to another.
+2. **Turn "Confirm email" off** under **Authentication → Sign In / Providers → Email**, and leave
+   public sign-ups **on**. Usernames become addresses at a domain that does not exist, so a
+   confirmation mail can never arrive; with confirmation on, nobody can create an account. Sign-ups
+   must stay on so family members can register — an account by itself grants nothing.
 
-3. **Exercise the share flow end to end** with a second account: create a link, open it in a private
-   window, sign up, join, and confirm both accounts see the same games and each other's edits.
-   `list_library_members()` returns members' email addresses to fellow members of that shelf — worth
-   a look before inviting anyone outside the household.
+3. **Exercise the allowlist end to end** with a second account: add a username, sign up with it in a
+   private window, confirm both accounts see the same games and each other's edits, then remove the
+   username and confirm access is gone on their next load.
 
-4. **Review and commit the defect-1 fix.** It is in the working tree, unstaged.
+4. **Check the surviving shelf's name** after the migration lands. The collapse keeps the name of
+   whichever shelf had the most games, which may not be the one you would have picked. Rename it
+   from the shelf screen.
 2. **Android has never been run.** The emulator `Pixel_3a_API_33_x86_64` exists and `adb` sees no
    attached devices. `npm run android`. Everything about the app on Android is unverified —
    including whether `Alert.alert` (the native path, not the web `window.confirm` fallback) works
@@ -254,11 +295,13 @@ routes. **Not verified:** anything involving the database — see below.
 
 - **Cloud, not local storage.** The user explicitly chose Supabase so browser and phone share one
   collection.
-- **Shared shelves are collaborative, not read-only.** Asked on 2026-08-25 whether an invite link
-  should give a read-only view or full membership, the user chose membership: everyone on a shelf
-  can add, edit and delete. Owners additionally rename, remove people and revoke links.
-- **The active shelf is remembered per user** (`AsyncStorage`, keyed by user id) and falls back to
-  the personal shelf when the remembered one is gone — left, or removed from.
+- **There is exactly one shelf, forever.** Confirmed on 2026-08-27: a single family collection,
+  no per-user shelves, nothing to create or switch between. Enforced in the schema, not just the UI.
+- **The shelf is collaborative, not read-only.** Everyone on it can add, edit and delete. Owners
+  additionally rename it and manage who is on it.
+- **Access is an allowlist of usernames, not invite links.** Chosen on 2026-08-27 over links and
+  over auto-joining every sign-up. Email addresses are explicitly not required — supporting people
+  without a mailbox was a stated goal.
 - **The whole library is fetched once and filtered in memory** (`lib/filter.ts`). A personal
   collection is small; this makes search instant and avoids a round trip per keystroke. Move search
   server-side in `lib/queries/games.ts` only if the collection passes a few thousand rows.

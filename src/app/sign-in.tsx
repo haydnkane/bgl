@@ -8,35 +8,52 @@ import { ThemedText } from '@/components/themed-text';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { supabase } from '@/lib/supabase';
+import { normalizeUsername, toAuthEmail, usernameProblem } from '@/lib/username';
 
 type Mode = 'sign-in' | 'sign-up';
 
 export default function SignInScreen() {
   const theme = useTheme();
   const [mode, setMode] = useState<Mode>('sign-in');
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const isSignUp = mode === 'sign-up';
+
   const submit = async () => {
+    const name = normalizeUsername(username);
+    // Existing accounts were made with a real address; anything without an "@" is a
+    // username and gets turned into one — see lib/username.ts.
+    if (!name.includes('@')) {
+      const problem = usernameProblem(name);
+      if (problem) {
+        setError(problem);
+        return;
+      }
+    }
+
     setBusy(true);
     setError(null);
     setNotice(null);
 
+    const email = toAuthEmail(name);
+
     if (mode === 'sign-in') {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
-      if (signInError) setError(signInError.message);
-      // On success the auth listener in AuthProvider redirects us to the library.
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      if (signInError) {
+        setError(
+          signInError.message.toLowerCase().includes('invalid login')
+            ? 'That username and password do not match an account.'
+            : signInError.message
+        );
+      }
+      // On success the auth listener in AuthProvider takes us to the shelf — or to the
+      // "not on the shelf" screen, if nobody has added this username yet.
     } else {
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-      });
+      const { data, error: signUpError } = await supabase.auth.signUp({ email, password });
       if (signUpError) {
         setError(
           signUpError.message.toLowerCase().includes('not allowed')
@@ -44,16 +61,17 @@ export default function SignInScreen() {
             : signUpError.message
         );
       } else if (!data.session) {
-        // Email confirmation is on, so there is no session yet.
-        setNotice('Check your email for a confirmation link, then sign in.');
+        // Usernames become addresses at a domain that does not exist, so a confirmation
+        // email can never arrive. This is a project setting, not something to wait out.
+        setNotice(
+          'This app needs email confirmation switched off in Supabase before username accounts can be created.'
+        );
         setMode('sign-in');
       }
     }
 
     setBusy(false);
   };
-
-  const isSignUp = mode === 'sign-up';
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]}>
@@ -65,18 +83,19 @@ export default function SignInScreen() {
             <ThemedText type="subtitle">Board Game Shelf</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
               {isSignUp
-                ? 'Create an account to start a shelf, or to join one you have been invited to.'
-                : 'Sign in to reach your collection.'}
+                ? 'Pick a username and a password. You will need someone already on the shelf to have added that username.'
+                : 'Sign in to reach the shelf.'}
             </ThemedText>
 
             <Field
-              label="Email"
-              value={email}
-              onChangeText={setEmail}
+              label="Username"
+              value={username}
+              onChangeText={setUsername}
               autoCapitalize="none"
-              autoComplete="email"
-              keyboardType="email-address"
-              placeholder="you@example.com"
+              autoCorrect={false}
+              autoComplete="username"
+              placeholder="haydn"
+              hint={isSignUp ? 'No email address needed.' : undefined}
             />
             <Field
               label="Password"
@@ -111,7 +130,7 @@ export default function SignInScreen() {
               hitSlop={8}
               style={styles.toggle}>
               <ThemedText type="small" themeColor="textSecondary">
-                {isSignUp ? 'Already have an account? Sign in' : 'New here? Create an account'}
+                {isSignUp ? 'Already have an account? Sign in' : 'First time here? Create an account'}
               </ThemedText>
             </Pressable>
           </View>

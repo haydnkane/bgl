@@ -2,20 +2,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useUserId } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
-import type {
-  InvitePreview,
-  Library,
-  LibraryInvite,
-  LibraryMember,
-  LibraryMembership,
-  LibraryRole,
-} from '@/lib/types';
+import type { Library, LibraryMembership, LibraryRole, ShelfPerson } from '@/lib/types';
+import { normalizeUsername } from '@/lib/username';
 
-/** Invalidation prefix; live keys are scoped below — see queries/games.ts for why. */
-export const librariesKey = ['libraries'] as const;
-export const userLibrariesKey = (userId: string) => [...librariesKey, userId] as const;
-export const membersKey = (libraryId: string) => ['library-members', libraryId] as const;
-export const invitesKey = (libraryId: string) => ['library-invites', libraryId] as const;
+/** Invalidation prefix; the live key is scoped to the user — see queries/games.ts for why. */
+export const shelfKey = ['shelf'] as const;
+export const userShelfKey = (userId: string) => [...shelfKey, userId] as const;
+export const peopleKey = ['shelf-people'] as const;
 
 type MembershipRow = {
   role: LibraryRole;
@@ -24,62 +17,49 @@ type MembershipRow = {
   libraries: (Library & { library_members: { count: number }[] }) | null;
 };
 
-/** Every shelf the signed-in user belongs to: their own, plus any they have joined. */
-export function useMyLibraries() {
+/**
+ * The signed-in user's place on the shelf, or null if they have none yet.
+ *
+ * There is only ever one shelf, so this is at most one row — but it is still fetched
+ * through `library_members`, because that is the table RLS lets a non-member read nothing
+ * from. A null result is the "not on the shelf" state, not an error.
+ */
+export function useMyMembership() {
   const userId = useUserId();
   return useQuery({
-    queryKey: userLibrariesKey(userId ?? 'signed-out'),
+    queryKey: userShelfKey(userId ?? 'signed-out'),
     enabled: userId !== null,
-    queryFn: async (): Promise<LibraryMembership[]> => {
+    queryFn: async (): Promise<LibraryMembership | null> => {
       const { data, error } = await supabase
         .from('library_members')
-        .select(
-          'role, joined_at, libraries(id, name, created_by, is_personal, created_at, library_members(count))'
-        )
-        .eq('user_id', userId!);
+        .select('role, joined_at, libraries(id, name, created_at, library_members(count))')
+        .eq('user_id', userId!)
+        .maybeSingle();
       if (error) throw error;
 
-      return (data as unknown as MembershipRow[])
-        .filter((row) => row.libraries !== null)
-        .map((row) => {
-          const { library_members, ...library } = row.libraries!;
-          return {
-            library,
-            role: row.role,
-            joined_at: row.joined_at,
-            member_count: library_members[0]?.count ?? 1,
-          };
-        })
-        // Your own shelf first, then joined ones alphabetically — a stable order that does
-        // not shuffle when someone renames a shelf you are on.
-        .sort((a, b) => {
-          if (a.library.is_personal !== b.library.is_personal) return a.library.is_personal ? -1 : 1;
-          return a.library.name.localeCompare(b.library.name, undefined, { sensitivity: 'base' });
-        });
+      const row = data as unknown as MembershipRow | null;
+      if (!row?.libraries) return null;
+
+      const { library_members, ...library } = row.libraries;
+      return {
+        library,
+        role: row.role,
+        joined_at: row.joined_at,
+        member_count: library_members[0]?.count ?? 1,
+      };
     },
   });
 }
 
 /**
- * Creates the caller's personal shelf if they have none. Safe to call repeatedly: the
- * function is idempotent server-side.
+ * Claims the caller's allowlist entry and puts them on the shelf. Idempotent, so the
+ * client can call it after every sign-in; it throws when the username is not allowed, and
+ * that message is what the locked-out screen shows.
  */
-export async function ensurePersonalLibrary(): Promise<string> {
-  const { data, error } = await supabase.rpc('ensure_personal_library');
+export async function joinShelf(): Promise<string> {
+  const { data, error } = await supabase.rpc('join_shelf');
   if (error) throw error;
   return data as string;
-}
-
-export function useCreateLibrary() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (name: string): Promise<string> => {
-      const { data, error } = await supabase.rpc('create_library', { name });
-      if (error) throw error;
-      return data as string;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: librariesKey }),
-  });
 }
 
 export function useRenameLibrary() {
@@ -89,124 +69,54 @@ export function useRenameLibrary() {
       const { error } = await supabase.from('libraries').update({ name: name.trim() }).eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: librariesKey }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: shelfKey }),
   });
 }
 
-export function useLibraryMembers(libraryId: string | null) {
+/** The allowlist: who may use the shelf, and which of them have signed in. */
+export function useShelfPeople() {
   return useQuery({
-    queryKey: membersKey(libraryId ?? 'none'),
-    enabled: libraryId !== null,
-    queryFn: async (): Promise<LibraryMember[]> => {
-      const { data, error } = await supabase.rpc('list_library_members', { lib: libraryId });
+    queryKey: peopleKey,
+    queryFn: async (): Promise<ShelfPerson[]> => {
+      const { data, error } = await supabase.rpc('list_shelf_people');
       if (error) throw error;
-      return (data ?? []) as LibraryMember[];
+      return (data ?? []) as ShelfPerson[];
     },
   });
 }
 
-export function useRemoveMember(libraryId: string | null) {
+export function useAllowUser() {
   const queryClient = useQueryClient();
+  const userId = useUserId();
   return useMutation({
-    mutationFn: async (userId: string) => {
-      const { error } = await supabase
-        .from('library_members')
-        .delete()
-        .eq('library_id', libraryId!)
-        .eq('user_id', userId);
-      if (error) throw error;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: membersKey(libraryId ?? 'none') }),
-  });
-}
-
-/** Invite links that have not been revoked. Expired ones are kept so the UI can say so. */
-export function useLibraryInvites(libraryId: string | null) {
-  return useQuery({
-    queryKey: invitesKey(libraryId ?? 'none'),
-    enabled: libraryId !== null,
-    queryFn: async (): Promise<LibraryInvite[]> => {
-      const { data, error } = await supabase
-        .from('library_invites')
-        .select('*')
-        .eq('library_id', libraryId!)
-        .is('revoked_at', null)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data as LibraryInvite[];
-    },
-  });
-}
-
-export function useCreateInvite(libraryId: string | null) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (ttlHours: number | null): Promise<string> => {
-      const { data, error } = await supabase.rpc('create_library_invite', {
-        lib: libraryId,
-        ttl_hours: ttlHours,
+    mutationFn: async ({ username, displayName }: { username: string; displayName?: string }) => {
+      const { error } = await supabase.from('allowed_users').insert({
+        username: normalizeUsername(username),
+        display_name: displayName?.trim() || null,
+        // The insert policy requires this to be the caller: an entry always records who
+        // let that person in.
+        added_by: userId,
       });
       if (error) throw error;
-      return data as string;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: invitesKey(libraryId ?? 'none') }),
-  });
-}
-
-export function useRevokeInvite(libraryId: string | null) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (token: string) => {
-      const { error } = await supabase
-        .from('library_invites')
-        .update({ revoked_at: new Date().toISOString() })
-        .eq('token', token);
-      if (error) throw error;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: invitesKey(libraryId ?? 'none') }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: peopleKey }),
   });
 }
 
 /**
- * What an invite link points at, resolved without joining. Runs signed out too — it is
- * what the join screen shows a visitor before they have an account.
+ * Takes someone off the shelf. A database trigger drops their membership too, so this is
+ * the single revoke — there is no separate "remove member".
  */
-export function useInvitePreview(token: string | undefined) {
-  const userId = useUserId();
-  return useQuery({
-    // Keyed on the user as well: "already_member" depends on who is asking.
-    queryKey: ['invite-preview', token, userId] as const,
-    enabled: !!token,
-    retry: false,
-    queryFn: async (): Promise<InvitePreview | null> => {
-      const { data, error } = await supabase.rpc('library_invite_preview', { tok: token });
-      if (error) throw error;
-      const rows = (data ?? []) as InvitePreview[];
-      // No row means no such token. Deliberately indistinguishable from a typo.
-      return rows[0] ?? null;
-    },
-  });
-}
-
-export function useRedeemInvite() {
+export function useDisallowUser() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (token: string): Promise<string> => {
-      const { data, error } = await supabase.rpc('redeem_library_invite', { tok: token });
-      if (error) throw error;
-      return data as string;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: librariesKey }),
-  });
-}
-
-export function useLeaveLibrary() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (libraryId: string) => {
-      const { error } = await supabase.rpc('leave_library', { lib: libraryId });
+    mutationFn: async (username: string) => {
+      const { error } = await supabase.from('allowed_users').delete().eq('username', username);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: librariesKey }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: peopleKey });
+      queryClient.invalidateQueries({ queryKey: shelfKey });
+    },
   });
 }

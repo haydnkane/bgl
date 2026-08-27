@@ -7,7 +7,7 @@ Expo / React Native codebase, backed by a Supabase project so both see the same 
 - Import cover art and metadata from BoardGameGeek
 - Tag games with your own colour-coded labels
 - Search by name, filter by label (match any or all), sort by name / year / rating / date added
-- Share a shelf by link: whoever joins can add, edit and remove games alongside you
+- One shared shelf for the whole household: everyone on it sees and edits the same collection
 
 ## Stack
 
@@ -15,7 +15,7 @@ Expo / React Native codebase, backed by a Supabase project so both see the same 
 |---|---|
 | App | Expo SDK 57 (React Native 0.86, React 19.2), TypeScript, expo-router |
 | Web | react-native-web, static rendering (`app.json` → `web.output: "static"`) |
-| Data | Supabase Postgres, row level security per shelf membership |
+| Data | Supabase Postgres, row level security on shelf membership |
 | Server state | TanStack Query |
 | BGG | Supabase Edge Function proxy (`supabase/functions/bgg`) |
 
@@ -49,11 +49,15 @@ npx supabase link --project-ref <your-project-ref>
 npx supabase db push
 ```
 
-Then create your user under **Authentication → Users**.
+Two settings under **Authentication** matter:
 
-Leave public sign-ups **on** under **Authentication → Sign In / Providers**: people you invite to a
-shared shelf need to be able to create an account. An account on its own reveals nothing — a new
-user gets an empty shelf of their own, and only an invite link grants access to yours.
+- **Sign In / Providers → Email**: turn **Confirm email** *off*. People sign in with a username, not
+  an email address, so a confirmation link could never arrive (see [Usernames](#usernames) below).
+- Leave public sign-ups **on**. Family members need to be able to create their own account, and an
+  account on its own grants nothing — only being on the allowlist does.
+
+The first person to sign in on a fresh project takes the shelf and becomes its owner, because there
+is nobody yet who could have added them. Everyone after that has to be added by an owner.
 
 ### 3. Run it
 
@@ -62,23 +66,33 @@ npm run web        # browser
 npm run android    # Pixel emulator or a device running Expo Go
 ```
 
-### 4. Sharing a shelf
+### 4. Adding people
 
-A *shelf* is the unit of ownership: games and labels belong to one, and people are members of it.
-Everyone gets their own shelf on first sign-in, and can be on any number of shared ones.
+There is **one shelf**, for everyone — the database enforces it, and there is no way to create a
+second. Who may use it is a list of usernames.
 
-1. Tap the shelf name at the top of the library, then **New link**. It is copied to the clipboard.
-2. Send it. The recipient sees the shelf's name and how many people are on it, signs in or creates
-   an account, and joins — the link survives the trip through sign-up.
-3. Everyone on a shelf can add, edit and delete its games and labels. Owners can additionally
-   rename it, remove people, and revoke links.
+1. An owner taps the shelf name at the top of the library, then adds the username under
+   **Add someone**.
+2. That person opens the app, chooses **First time here? Create an account**, and signs up with
+   exactly that username and a password of their own.
+3. They are on the shelf. Everyone on it can add, edit and delete games and labels; owners can
+   additionally rename the shelf and add or remove people.
 
-Revoking a link stops anyone new joining with it; it does not remove people who already have. Take
-them off under **People**. The token in a link is the only thing protecting the shelf, so treat it
-like a key — links can be set to expire after 7 days, or never.
+Removing someone from the list revokes their access immediately — a database trigger drops their
+membership with the entry. The games they added stay. Signing in with a username nobody has added
+gets a "Not on the shelf" screen rather than an error: the account exists, it just has no access.
 
-Set `EXPO_PUBLIC_WEB_URL` to your deployed web address so links created on the phone open in a
-browser for people who do not have the app.
+#### Usernames
+
+Supabase Auth identifies accounts by email address, but nobody here needs a mailbox. A username is
+turned into an address at `shelf.invalid` — a domain reserved by RFC 2606 so it can never exist —
+and that is what Auth stores. Nothing is ever sent to it, which is why **Confirm email** has to be
+off.
+
+The constant lives in two places that must agree: `public.username_domain()` in
+`supabase/migrations/0005_single_shelf.sql`, and `USERNAME_DOMAIN` in `src/lib/username.ts`. Accounts
+created before usernames still sign in with their full email address; both forms resolve to the same
+allowlist entry.
 
 ### 5. BoardGameGeek (optional)
 
@@ -113,8 +127,7 @@ edge function. Pull requests run the checks only. See [.github/workflows/](.gith
 
 The site is exported as a single-page app (`web.output: "single"`) served from the `/bgl` subpath
 (`experiments.baseUrl`). CI copies `index.html` to `404.html` so that a cold visit to a deep link
-such as `/join/<token>` boots the router rather than showing GitHub's 404 page — without that step
-invite links are broken.
+such as `/game/<id>` boots the router rather than showing GitHub's 404 page.
 
 ### Repository configuration
 
@@ -127,7 +140,6 @@ Under **Settings → Pages**, set the source to **GitHub Actions**. Then add the
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Secret | The anon key |
 | `SUPABASE_DB_URL` | Secret | Postgres connection string, from Dashboard → Connect |
 | `SUPABASE_ACCESS_TOKEN` | Secret | Personal access token, from Account → Access Tokens |
-| `EXPO_PUBLIC_WEB_URL` | Variable | `https://haydnkane.github.io/bgl` |
 | `SUPABASE_PROJECT_REF` | Variable | Your project ref |
 
 The two `EXPO_PUBLIC_` values are stored as secrets for tidiness, but they are compiled into the
@@ -157,13 +169,12 @@ src/
     (tabs)/labels.tsx   manage labels
     game/new.tsx        add — BGG search or manual entry
     game/[id].tsx       detail, edit, delete, refresh from BGG
-    shelf.tsx           members, invite links, switching shelves
-    join/[token].tsx    invite landing page — reachable signed out
+    shelf.tsx           shelf name, and who is allowed on it
   components/           GameCard, GameForm, LabelPicker, chips, inputs
   lib/
     supabase.ts         client (platform-aware auth storage)
-    library.tsx         which shelf is active, and remembering it
-    invites.ts          invite URLs, and holding a token through sign-up
+    library.tsx         resolving membership of the one shelf, and joining it
+    username.ts         usernames <-> the addresses Supabase Auth stores
     filter.ts           pure search/filter/sort — unit tested
     bgg.ts              typed client for the edge function
     queries/            TanStack Query hooks
@@ -178,5 +189,7 @@ supabase/
   offline; if the collection ever passes a few thousand games, move the search server-side in
   `lib/queries/games.ts`.
 - BGG rate limits apply even with a token, so search input is debounced by 400ms.
-- Joining a shelf goes through `redeem_library_invite()` rather than a table write: there is no
-  insert policy on `library_members` at all, so a valid token is the only way in.
+- Joining goes through `join_shelf()` rather than a table write: there is no insert policy on
+  `library_members` at all, so being on the allowlist is the only way in.
+- `library_id` survives on `games` and `labels` even though it can only hold one value now. It is
+  the column every RLS policy is written against, so keeping it avoided rewriting them all.

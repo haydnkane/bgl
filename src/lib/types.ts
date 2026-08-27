@@ -1,48 +1,34 @@
 export type LibraryRole = 'owner' | 'member';
 
-/** A shelf. Games and labels belong to one, and people are members of it. */
+/** The shelf. There is exactly one, and every game and label belongs to it. */
 export type Library = {
   id: string;
   name: string;
-  /** Null once the creator deletes their account; the shelf outlives them. */
-  created_by: string | null;
-  /** The shelf a user gets automatically. It cannot be left, only shared. */
-  is_personal: boolean;
   created_at: string;
 };
 
-/** A library as seen by the signed-in user, carrying their own role on it. */
+/** The shelf as seen by the signed-in user, carrying their own role on it. */
 export type LibraryMembership = {
   library: Library;
   role: LibraryRole;
   joined_at: string;
-  /** Counted in the same request, so the header can say "shared" without asking again. */
+  /** Counted in the same request, so the header can show it without asking again. */
   member_count: number;
 };
 
-/** A fellow member, from list_library_members — emails are not readable directly. */
-export type LibraryMember = {
-  user_id: string;
-  email: string | null;
-  role: LibraryRole;
-  joined_at: string;
-};
-
-export type LibraryInvite = {
-  token: string;
-  library_id: string;
-  created_by: string | null;
-  created_at: string;
-  expires_at: string | null;
-  revoked_at: string | null;
-};
-
-/** What the holder of an invite link is shown before joining. */
-export type InvitePreview = {
-  library_id: string;
-  library_name: string;
-  member_count: number;
-  status: 'ok' | 'revoked' | 'expired' | 'already_member';
+/**
+ * A row of the allowlist, from list_shelf_people().
+ *
+ * Everything below `username` is null until that person first signs in: the entry is
+ * permission to use the shelf, granted before the account it will belong to exists.
+ */
+export type ShelfPerson = {
+  username: string;
+  display_name: string | null;
+  user_id: string | null;
+  role: LibraryRole | null;
+  joined_at: string | null;
+  added_at: string;
 };
 
 export type Label = {

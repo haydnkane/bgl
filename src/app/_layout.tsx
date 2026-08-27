@@ -1,12 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, View, useColorScheme } from 'react-native';
 
+import { LockedOut } from '@/components/locked-out';
 import { AuthProvider, useAuth } from '@/lib/auth';
-import { takePendingInvite } from '@/lib/invites';
-import { LibraryProvider } from '@/lib/library';
+import { LibraryProvider, useLibrary } from '@/lib/library';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -14,7 +14,7 @@ function makeQueryClient() {
   return new QueryClient({
     defaultOptions: {
       queries: {
-        // The library changes rarely and is small; avoid refetch churn when switching tabs.
+        // The shelf changes rarely and is small; avoid refetch churn when switching tabs.
         staleTime: 60_000,
         retry: 1,
       },
@@ -23,48 +23,37 @@ function makeQueryClient() {
 }
 
 /**
- * Sends signed-out visitors to /sign-in and signed-in ones back to the library.
- *
- * /join/[token] is exempt: someone following an invite link has to be able to see what
- * they were invited to before they have an account.
+ * Sends signed-out visitors to /sign-in and signed-in ones back to the shelf, and holds
+ * back the app itself until we know the account is allowed on the shelf at all.
  */
 function AuthGate() {
   const { session, loading } = useAuth();
+  const { loading: joining, lockedOut, retry } = useLibrary();
   const segments = useSegments();
   const router = useRouter();
-  // Guards the async hop below against a second run landing on '/' after the first has
-  // already routed to the invite.
-  const handledSignIn = useRef(false);
 
   useEffect(() => {
     if (loading) return;
     SplashScreen.hideAsync();
 
-    const onSignIn = segments[0] === 'sign-in';
-    const isPublic = onSignIn || segments[0] === 'join';
-
     if (!session) {
-      handledSignIn.current = false;
-      if (!isPublic) router.replace('/sign-in');
+      if (segments[0] !== 'sign-in') router.replace('/sign-in');
       return;
     }
 
-    if (onSignIn && !handledSignIn.current) {
-      handledSignIn.current = true;
-      // An invite followed while signed out resumes here, once there is a session to
-      // redeem it with.
-      takePendingInvite().then((token) => {
-        router.replace(token ? { pathname: '/join/[token]', params: { token } } : '/');
-      });
-    }
+    if (segments[0] === 'sign-in') router.replace('/');
   }, [session, loading, segments, router]);
 
-  if (loading) {
+  if (loading || (session && joining)) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
         <ActivityIndicator />
       </View>
     );
+  }
+
+  if (session && lockedOut) {
+    return <LockedOut reason={lockedOut} onRetry={retry} />;
   }
 
   return (
@@ -73,8 +62,7 @@ function AuthGate() {
       <Stack.Screen name="sign-in" options={{ headerShown: false }} />
       <Stack.Screen name="game/new" options={{ title: 'Add game', presentation: 'modal' }} />
       <Stack.Screen name="game/[id]" options={{ title: 'Game' }} />
-      <Stack.Screen name="shelf" options={{ title: 'Shelf & sharing', presentation: 'modal' }} />
-      <Stack.Screen name="join/[token]" options={{ title: 'Join a shelf' }} />
+      <Stack.Screen name="shelf" options={{ title: 'Shelf & people', presentation: 'modal' }} />
     </Stack>
   );
 }

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { useActiveLibraryId } from '@/lib/library';
+import { useLibraryId } from '@/lib/library';
 import { supabase } from '@/lib/supabase';
 import type { Game, GameInput, GameWithLabels } from '@/lib/types';
 
@@ -25,7 +25,7 @@ type GameRow = Game & { game_labels: { label_id: string }[] | null };
  * searched/filtered/sorted in memory (see lib/filter.ts).
  */
 export function useGames() {
-  const libraryId = useActiveLibraryId();
+  const libraryId = useLibraryId();
   return useQuery({
     queryKey: libraryGamesKey(libraryId ?? 'no-library'),
     // Never query before a shelf is known: RLS would return [] and that would be cached.
@@ -64,10 +64,10 @@ async function replaceGameLabels(gameId: string, labelIds: string[], libraryId: 
 
 export function useAddGame() {
   const queryClient = useQueryClient();
-  const libraryId = useActiveLibraryId();
+  const libraryId = useLibraryId();
   return useMutation({
     mutationFn: async ({ input, labelIds }: { input: GameInput; labelIds: string[] }) => {
-      if (!libraryId) throw new Error('No shelf selected.');
+      if (!libraryId) throw new Error('You are not on the shelf.');
       const { data, error } = await supabase
         .from('games')
         .insert({ ...input, library_id: libraryId })
@@ -83,7 +83,7 @@ export function useAddGame() {
 
 export function useUpdateGame() {
   const queryClient = useQueryClient();
-  const libraryId = useActiveLibraryId();
+  const libraryId = useLibraryId();
   return useMutation({
     mutationFn: async ({
       id,
@@ -94,7 +94,7 @@ export function useUpdateGame() {
       input: GameInput;
       labelIds?: string[];
     }) => {
-      if (!libraryId) throw new Error('No shelf selected.');
+      if (!libraryId) throw new Error('You are not on the shelf.');
       const { error } = await supabase
         .from('games')
         .update(input)
@@ -109,12 +109,12 @@ export function useUpdateGame() {
 
 export function useDeleteGame() {
   const queryClient = useQueryClient();
-  const libraryId = useActiveLibraryId();
+  const libraryId = useLibraryId();
   // The optimistic update writes to one cache entry, so it needs the scoped key.
   const key = libraryGamesKey(libraryId ?? 'no-library');
   return useMutation({
     mutationFn: async (id: string) => {
-      if (!libraryId) throw new Error('No shelf selected.');
+      if (!libraryId) throw new Error('You are not on the shelf.');
       const { error } = await supabase
         .from('games')
         .delete()

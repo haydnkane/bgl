@@ -92,12 +92,11 @@ jobs:
         env:
           EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
-          EXPO_PUBLIC_WEB_URL: ${{ vars.EXPO_PUBLIC_WEB_URL }}
 
       # GitHub Pages serves 404.html for any path with no matching file. The
       # export is a single-page app, so serving index.html there is what makes
-      # a cold visit to /join/<token> or /game/<id> boot the router instead of
-      # showing GitHub's 404. Without this, invite links are broken.
+      # a cold visit to a deep link such as /game/<id> boot the router instead
+      # of showing GitHub's 404.
       - name: Add SPA fallback
         run: cp dist/index.html dist/404.html
 
