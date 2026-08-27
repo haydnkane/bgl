@@ -41,10 +41,10 @@ jobs:
     name: Migrations and edge function
     needs: quality
     runs-on: ubuntu-latest
-    # Gate: add required reviewers to the "production" environment in repo
+    # Gate: add required reviewers to the "bgl" environment in repo
     # settings and this job waits for approval before touching the live
     # database. Without reviewers it runs straight through.
-    environment: production
+    environment: bgl
     steps:
       - uses: actions/checkout@v4
 

@@ -139,7 +139,7 @@ design and row level security is what protects the data. `SUPABASE_DB_URL` and
 
 The deploy workflow runs `supabase db push` against the live database on every push to `main`. It
 lists pending migrations before applying them, so the run log records what changed. To require
-sign-off first, add yourself as a required reviewer on the `production` environment under
+sign-off first, add yourself as a required reviewer on the `bgl` environment under
 **Settings → Environments**; the job then waits for approval before touching the database.
 
 ## Android APK
