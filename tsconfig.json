@@ -3,7 +3,11 @@
   "compilerOptions": {
     "strict": true,
     // TS 6 no longer picks up @types automatically here; jest's globals are needed by *.test.ts.
+    // expo/types carries the CSS module declarations for the '@/global.css' side-effect import.
+    // It is normally pulled in by the generated expo-env.d.ts, but that file is gitignored, so
+    // naming it here is what keeps a clean checkout (CI) type-checking the same as a local one.
     "types": [
+      "expo/types",
       "jest",
       "node"
     ],
