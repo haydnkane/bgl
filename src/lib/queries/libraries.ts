@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useUserId } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
-import type { Library, LibraryMembership, LibraryRole, ShelfPerson } from '@/lib/types';
+import type { LibraryMembership, ShelfPerson } from '@/lib/types';
 import { normalizeUsername } from '@/lib/username';
 
 /** Invalidation prefix; the live key is scoped to the user — see queries/games.ts for why. */
@@ -10,19 +10,11 @@ export const shelfKey = ['shelf'] as const;
 export const userShelfKey = (userId: string) => [...shelfKey, userId] as const;
 export const peopleKey = ['shelf-people'] as const;
 
-type MembershipRow = {
-  role: LibraryRole;
-  joined_at: string;
-  /** `library_members(count)` comes back as a one-element array of aggregates. */
-  libraries: (Library & { library_members: { count: number }[] }) | null;
-};
-
 /**
- * The signed-in user's place on the shelf, or null if they have none yet.
+ * The signed-in user's place in the collection, or null if they have none yet.
  *
- * There is only ever one shelf, so this is at most one row — but it is still fetched
- * through `library_members`, because that is the table RLS lets a non-member read nothing
- * from. A null result is the "not on the shelf" state, not an error.
+ * At most one row: there is only ever one library, and one membership of it per person. A
+ * null result is the "not allowed in" state, not an error.
  */
 export function useMyMembership() {
   const userId = useUserId();
@@ -32,21 +24,11 @@ export function useMyMembership() {
     queryFn: async (): Promise<LibraryMembership | null> => {
       const { data, error } = await supabase
         .from('library_members')
-        .select('role, joined_at, libraries(id, name, created_at, library_members(count))')
+        .select('library_id, role, joined_at')
         .eq('user_id', userId!)
         .maybeSingle();
       if (error) throw error;
-
-      const row = data as unknown as MembershipRow | null;
-      if (!row?.libraries) return null;
-
-      const { library_members, ...library } = row.libraries;
-      return {
-        library,
-        role: row.role,
-        joined_at: row.joined_at,
-        member_count: library_members[0]?.count ?? 1,
-      };
+      return (data as LibraryMembership | null) ?? null;
     },
   });
 }
@@ -62,18 +44,7 @@ export async function joinShelf(): Promise<string> {
   return data as string;
 }
 
-export function useRenameLibrary() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, name }: { id: string; name: string }) => {
-      const { error } = await supabase.from('libraries').update({ name: name.trim() }).eq('id', id);
-      if (error) throw error;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: shelfKey }),
-  });
-}
-
-/** The allowlist: who may use the shelf, and which of them have signed in. */
+/** The allowlist: who may use the collection, and which of them have signed in. */
 export function useShelfPeople() {
   return useQuery({
     queryKey: peopleKey,

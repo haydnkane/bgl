@@ -5,16 +5,16 @@ import { supabase } from '@/lib/supabase';
 import type { Game, GameInput, GameWithLabels } from '@/lib/types';
 
 /**
- * Prefix shared by every shelf; mutations invalidate this and React Query matches the
- * scoped keys below by prefix.
+ * Invalidation prefix; mutations invalidate this and React Query matches the scoped key
+ * below by prefix.
  */
 export const gamesKey = ['games'] as const;
 
 /**
- * Cache keys are scoped to the shelf, so switching shelves — or signing in as someone
- * else — is a change of key rather than stale rows from the previous one. Without that,
- * the queries that run during the brief signed-out render before AuthGate redirects would
- * cache an empty RLS result and never refetch, leaving the library blank after sign-in.
+ * Cache keys are scoped to the library id, so signing in as someone else is a change of
+ * key rather than stale rows from the previous session. Without that, the queries that run
+ * during the brief signed-out render before AuthGate redirects would cache an empty RLS
+ * result and never refetch, leaving the library blank after sign-in.
  */
 export const libraryGamesKey = (libraryId: string) => [...gamesKey, libraryId] as const;
 

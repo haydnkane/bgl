@@ -242,7 +242,12 @@ resolve to the same allowlist key.
 **Bootstrap.** On a fresh project nobody can be on the allowlist, so `join_shelf()` gives the shelf
 to the first account that signs in, as owner. It can never fire again once anyone is a member.
 
-New: `0005_single_shelf.sql`, `src/lib/username.ts`, `src/components/locked-out.tsx`.
+The shelf itself is invisible in the UI. There is nothing to name, choose or rename, so the
+library header is a cog leading to `/settings`, and that screen is only the people list. The
+`libraries.name` column and its rename policy survive in the database, unused.
+
+New: `0005_single_shelf.sql`, `src/lib/username.ts`, `src/components/locked-out.tsx`,
+`src/app/settings.tsx` (was `src/app/shelf.tsx`).
 Deleted: `src/lib/invites.ts`, `src/app/join/[token].tsx`, and `EXPO_PUBLIC_WEB_URL`.
 
 **Verified:** all five migrations applied in order against a real Postgres (PGlite) over a seeded
@@ -275,9 +280,8 @@ refusing, the revoke trigger, the fresh-project bootstrap, and the RLS policies 
    private window, confirm both accounts see the same games and each other's edits, then remove the
    username and confirm access is gone on their next load.
 
-4. **Check the surviving shelf's name** after the migration lands. The collapse keeps the name of
-   whichever shelf had the most games, which may not be the one you would have picked. Rename it
-   from the shelf screen.
+4. **Nothing to check about the shelf's name** — it is never displayed. The collapse keeps the
+   name of whichever shelf had the most games, and it stays in the database unused.
 2. **Android has never been run.** The emulator `Pixel_3a_API_33_x86_64` exists and `adb` sees no
    attached devices. `npm run android`. Everything about the app on Android is unverified —
    including whether `Alert.alert` (the native path, not the web `window.confirm` fallback) works
@@ -297,6 +301,8 @@ refusing, the revoke trigger, the fresh-project bootstrap, and the RLS policies 
   collection.
 - **There is exactly one shelf, forever.** Confirmed on 2026-08-27: a single family collection,
   no per-user shelves, nothing to create or switch between. Enforced in the schema, not just the UI.
+- **The shelf is never shown.** Confirmed on 2026-08-27: with only one, naming it is noise. No name
+  in the header, no rename anywhere; the cog goes straight to people management.
 - **The shelf is collaborative, not read-only.** Everyone on it can add, edit and delete. Owners
   additionally rename it and manage who is on it.
 - **Access is an allowlist of usernames, not invite links.** Chosen on 2026-08-27 over links and

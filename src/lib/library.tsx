@@ -15,15 +15,13 @@ import { joinShelf, shelfKey, useMyMembership } from '@/lib/queries/libraries';
 import type { LibraryRole } from '@/lib/types';
 
 type LibraryState = {
-  name: string | null;
   libraryId: string | null;
   role: LibraryRole | null;
-  memberCount: number;
-  /** True until we know whether this account is on the shelf. Nothing queries before then. */
+  /** True until we know whether this account is allowed in. Nothing queries before then. */
   loading: boolean;
   /**
-   * Set when the account is signed in but not allowed on the shelf — the message is the
-   * one the database gave, naming the username that was refused.
+   * Set when the account is signed in but not on the allowlist — the message is the one
+   * the database gave, naming the username that was refused.
    */
   lockedOut: string | null;
   error: Error | null;
@@ -32,10 +30,8 @@ type LibraryState = {
 };
 
 const LibraryContext = createContext<LibraryState>({
-  name: null,
   libraryId: null,
   role: null,
-  memberCount: 0,
   loading: true,
   lockedOut: null,
   error: null,
@@ -94,10 +90,8 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     const awaitingJoin = membership === null && lockedOut === null;
 
     return {
-      name: membership?.library.name ?? null,
-      libraryId: membership?.library.id ?? null,
+      libraryId: membership?.library_id ?? null,
       role: membership?.role ?? null,
-      memberCount: membership?.member_count ?? 0,
       loading: !signedOut && (membership === undefined || awaitingJoin),
       lockedOut,
       error: (error as Error | null) ?? null,

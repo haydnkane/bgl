@@ -62,7 +62,7 @@ function AuthGate() {
       <Stack.Screen name="sign-in" options={{ headerShown: false }} />
       <Stack.Screen name="game/new" options={{ title: 'Add game', presentation: 'modal' }} />
       <Stack.Screen name="game/[id]" options={{ title: 'Game' }} />
-      <Stack.Screen name="shelf" options={{ title: 'Shelf & people', presentation: 'modal' }} />
+      <Stack.Screen name="settings" options={{ title: 'Settings', presentation: 'modal' }} />
     </Stack>
   );
 }

@@ -71,12 +71,12 @@ npm run android    # Pixel emulator or a device running Expo Go
 There is **one shelf**, for everyone — the database enforces it, and there is no way to create a
 second. Who may use it is a list of usernames.
 
-1. An owner taps the shelf name at the top of the library, then adds the username under
+1. An owner taps the cog at the top of the library, then adds the username under
    **Add someone**.
 2. That person opens the app, chooses **First time here? Create an account**, and signs up with
    exactly that username and a password of their own.
-3. They are on the shelf. Everyone on it can add, edit and delete games and labels; owners can
-   additionally rename the shelf and add or remove people.
+3. They are in. Everyone can add, edit and delete games and labels; owners can additionally add
+   and remove people.
 
 Removing someone from the list revokes their access immediately — a database trigger drops their
 membership with the entry. The games they added stay. Signing in with a username nobody has added
@@ -169,7 +169,7 @@ src/
     (tabs)/labels.tsx   manage labels
     game/new.tsx        add — BGG search or manual entry
     game/[id].tsx       detail, edit, delete, refresh from BGG
-    shelf.tsx           shelf name, and who is allowed on it
+    settings.tsx        who is allowed in — the only thing there is to configure
   components/           GameCard, GameForm, LabelPicker, chips, inputs
   lib/
     supabase.ts         client (platform-aware auth storage)

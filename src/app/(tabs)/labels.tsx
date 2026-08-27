@@ -101,7 +101,7 @@ export default function LabelsScreen() {
   const { loading: libraryLoading } = useLibrary();
   const { data: labels = [], isLoading: labelsLoading } = useLabels();
   const { data: games = [] } = useGames();
-  // The labels query has not run until a shelf is known — see (tabs)/index.tsx.
+  // The labels query has not run until membership is known — see (tabs)/index.tsx.
   const isLoading = libraryLoading || labelsLoading;
   const addLabel = useAddLabel();
 

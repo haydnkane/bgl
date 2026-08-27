@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/button';
@@ -10,25 +10,9 @@ import { useTheme } from '@/hooks/use-theme';
 import { useUserId } from '@/lib/auth';
 import { confirmDestructive } from '@/lib/confirm';
 import { useLibrary } from '@/lib/library';
-import {
-  useAllowUser,
-  useDisallowUser,
-  useRenameLibrary,
-  useShelfPeople,
-} from '@/lib/queries/libraries';
+import { useAllowUser, useDisallowUser, useShelfPeople } from '@/lib/queries/libraries';
 import type { ShelfPerson } from '@/lib/types';
 import { normalizeUsername, usernameProblem } from '@/lib/username';
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <View style={styles.section}>
-      <ThemedText type="smallBold" themeColor="textSecondary">
-        {title.toUpperCase()}
-      </ThemedText>
-      {children}
-    </View>
-  );
-}
 
 function personStatus(person: ShelfPerson, isYou: boolean): string {
   if (!person.user_id) return 'Has not signed in yet';
@@ -36,23 +20,21 @@ function personStatus(person: ShelfPerson, isYou: boolean): string {
   return isYou ? `${role} · you` : role;
 }
 
-export default function ShelfScreen() {
+/** Who can use the collection. Adding a username lets that person in; removing it locks them out. */
+export default function SettingsScreen() {
   const theme = useTheme();
   const userId = useUserId();
-  const { name, libraryId, role, loading } = useLibrary();
+  const { role, loading } = useLibrary();
 
-  const { data: people = [] } = useShelfPeople();
-  const renameLibrary = useRenameLibrary();
+  const { data: people = [], isLoading: peopleLoading } = useShelfPeople();
   const allowUser = useAllowUser();
   const disallowUser = useDisallowUser();
 
-  const [renaming, setRenaming] = useState(false);
-  const [draftName, setDraftName] = useState('');
   const [newUsername, setNewUsername] = useState('');
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  if (loading || !libraryId || name === null) {
+  if (loading || peopleLoading) {
     return (
       <View style={[styles.centered, { backgroundColor: theme.background }]}>
         <ActivityIndicator />
@@ -61,12 +43,6 @@ export default function ShelfScreen() {
   }
 
   const isOwner = role === 'owner';
-
-  const saveName = () => {
-    const next = draftName.trim();
-    setRenaming(false);
-    if (next && next !== name) renameLibrary.mutate({ id: libraryId, name: next });
-  };
 
   const add = async () => {
     const username = normalizeUsername(newUsername);
@@ -81,7 +57,7 @@ export default function ShelfScreen() {
     try {
       await allowUser.mutateAsync({ username });
       setNewUsername('');
-      setStatus(`"${username}" can now create an account and use the shelf.`);
+      setStatus(`"${username}" can now create an account and sign in.`);
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Could not add that username.';
       // The primary key is the only thing a well-formed name can collide with.
@@ -97,7 +73,7 @@ export default function ShelfScreen() {
     confirmDestructive(
       `Remove "${person.username}"?`,
       person.user_id
-        ? 'They lose access to the shelf straight away. The games they added stay.'
+        ? 'They lose access straight away. The games they added stay.'
         : 'They will no longer be able to create an account with that username.',
       () => {
         setError(null);
@@ -117,44 +93,14 @@ export default function ShelfScreen() {
       style={{ backgroundColor: theme.background }}
       contentContainerStyle={styles.scroll}
       keyboardShouldPersistTaps="handled">
-      <Section title="This shelf">
-        {renaming ? (
-          <View style={styles.row}>
-            <Field
-              value={draftName}
-              onChangeText={setDraftName}
-              autoFocus
-              onSubmitEditing={saveName}
-              containerStyle={styles.flex}
-            />
-            <Button title="Save" onPress={saveName} />
-          </View>
-        ) : (
-          <View style={styles.row}>
-            <ThemedText type="default" style={styles.flex}>
-              {name}
-            </ThemedText>
-            {isOwner ? (
-              <Pressable
-                onPress={() => {
-                  setDraftName(name);
-                  setRenaming(true);
-                }}
-                hitSlop={8}
-                accessibilityLabel="Rename shelf">
-                <ThemedText type="small" themeColor="tint">
-                  Rename
-                </ThemedText>
-              </Pressable>
-            ) : null}
-          </View>
-        )}
-        <ThemedText type="small" themeColor="textSecondary">
-          Everyone below shares this one collection — there is only ever this shelf.
+      <View style={styles.section}>
+        <ThemedText type="smallBold" themeColor="textSecondary">
+          {`PEOPLE (${people.length})`}
         </ThemedText>
-      </Section>
+        <ThemedText type="small" themeColor="textSecondary">
+          Everyone listed here shares the same collection and can add, edit and delete games.
+        </ThemedText>
 
-      <Section title={`People (${people.length})`}>
         {people.map((person) => {
           const isYou = person.user_id !== null && person.user_id === userId;
           return (
@@ -183,10 +129,13 @@ export default function ShelfScreen() {
             </View>
           );
         })}
-      </Section>
+      </View>
 
       {isOwner ? (
-        <Section title="Add someone">
+        <View style={styles.section}>
+          <ThemedText type="smallBold" themeColor="textSecondary">
+            ADD SOMEONE
+          </ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
             Add the username they will use, then tell them to open the app and create an
             account with it. No email address is involved.
@@ -208,10 +157,10 @@ export default function ShelfScreen() {
               loading={allowUser.isPending}
             />
           </View>
-        </Section>
+        </View>
       ) : (
         <ThemedText type="small" themeColor="textSecondary">
-          An owner of the shelf can add and remove people.
+          An owner can add and remove people.
         </ThemedText>
       )}
 

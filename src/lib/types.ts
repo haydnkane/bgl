@@ -1,19 +1,15 @@
 export type LibraryRole = 'owner' | 'member';
 
-/** The shelf. There is exactly one, and every game and label belongs to it. */
-export type Library = {
-  id: string;
-  name: string;
-  created_at: string;
-};
-
-/** The shelf as seen by the signed-in user, carrying their own role on it. */
+/**
+ * The signed-in user's place in the collection.
+ *
+ * There is only ever one library, so this carries its id — which every game and label row
+ * is scoped to — rather than the row itself. Nothing in the app displays the library.
+ */
 export type LibraryMembership = {
-  library: Library;
+  library_id: string;
   role: LibraryRole;
   joined_at: string;
-  /** Counted in the same request, so the header can show it without asking again. */
-  member_count: number;
 };
 
 /**

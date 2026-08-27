@@ -5,7 +5,7 @@ import { gamesKey } from '@/lib/queries/games';
 import { supabase } from '@/lib/supabase';
 import type { Label } from '@/lib/types';
 
-/** Invalidation prefix; the live key is scoped to the shelf — see queries/games.ts. */
+/** Invalidation prefix; the live key is scoped to the library id — see queries/games.ts. */
 export const labelsKey = ['labels'] as const;
 
 export const libraryLabelsKey = (libraryId: string) => [...labelsKey, libraryId] as const;

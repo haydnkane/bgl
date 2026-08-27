@@ -23,11 +23,11 @@ export default function LibraryScreen() {
   const { width } = useWindowDimensions();
   const [filter, setFilter] = usePersistentFilter();
 
-  const { name: shelfName, memberCount, loading: libraryLoading } = useLibrary();
+  const { loading: libraryLoading } = useLibrary();
   const { data: games = [], isLoading: gamesLoading, isRefetching, refetch, error } = useGames();
   const { data: labels = [] } = useLabels();
 
-  // Until a shelf is known the games query has not run at all, so "no games" would be a
+  // Until membership is known the games query has not run at all, so "no games" would be a
   // lie rather than an empty state.
   const isLoading = libraryLoading || gamesLoading;
 
@@ -51,21 +51,10 @@ export default function LibraryScreen() {
           <View style={styles.header}>
             <View style={styles.titleRow}>
               <Pressable
-                onPress={() => router.push('/shelf')}
-                accessibilityLabel="Shelf and people"
-                hitSlop={8}
-                style={styles.shelfButton}>
-                <ThemedText type="smallBold" numberOfLines={1}>
-                  {shelfName ?? 'Shelf'}
-                </ThemedText>
-                {memberCount > 1 ? (
-                  <>
-                    <Ionicons name="people" size={14} color={theme.textSecondary} />
-                    <ThemedText type="small" themeColor="textSecondary">
-                      {memberCount}
-                    </ThemedText>
-                  </>
-                ) : null}
+                onPress={() => router.push('/settings')}
+                accessibilityLabel="Settings"
+                hitSlop={8}>
+                <Ionicons name="settings-outline" size={20} color={theme.textSecondary} />
               </Pressable>
               <Pressable onPress={signOut} hitSlop={8}>
                 <ThemedText type="small" themeColor="textSecondary">
@@ -146,12 +135,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  shelfButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.one,
-    flexShrink: 1,
   },
   column: {
     gap: Spacing.two,
