@@ -250,6 +250,39 @@ New: `0005_single_shelf.sql`, `src/lib/username.ts`, `src/components/locked-out.
 `src/app/settings.tsx` (was `src/app/shelf.tsx`).
 Deleted: `src/lib/invites.ts`, `src/app/join/[token].tsx`, and `EXPO_PUBLIC_WEB_URL`.
 
+---
+
+## Roles (added 2026-08-27)
+
+`owner` / `admin` / `member`, where **member is now read-only** — it used to mean "full access, not
+an owner". `0006_member_roles.sql` therefore promotes every existing member to `admin` so nobody
+silently loses what they had; read-only is a choice someone has to make deliberately.
+
+The split is enforced in RLS, not the UI. The single `for all` policies on `games`, `labels` and
+`game_labels` are replaced by a `select` policy open to any member plus `insert` / `update` /
+`delete` policies that also require `is_shelf_editor()`. That matters because the anon key is in the
+web bundle: a hidden button stops nobody with a console open.
+
+`allowed_users.role` is the source of truth — it lets a role be chosen before that person has ever
+signed in — and `library_members.role` mirrors it, because that is what the policy helpers read.
+`set_person_role()` is the only thing that writes either, which is why the blanket update policy on
+`allowed_users` was dropped. `join_shelf()` refreshes the mirror on every call, so a role changed
+while someone was signed out takes effect on their next load.
+
+An owner cannot change their own role or remove their own entry, so management can never be orphaned.
+
+In the app: the cog is owner-only (and `/settings` refuses non-owners directly), the add button and
+the labels tab's editing affordances need `canEdit`, and a view-only member gets a purpose-built
+read-only game page rather than the form with its inputs disabled.
+
+New: `0006_member_roles.sql`, `src/components/role-picker.tsx`.
+
+**Verified:** 32 checks against a real Postgres (PGlite) driving all six migrations, exercised as the
+`authenticated` role so the policies actually apply — the backfill, each role's reads and writes
+across games/labels/game_labels/allowed_users, `set_person_role` in both directions, an owner being
+unable to demote themselves, and a role set before the person signs in. Plus typecheck, lint, 16/16
+jest and a web export.
+
 **Verified:** all five migrations applied in order against a real Postgres (PGlite) over a seeded
 three-shelf / four-game / four-label database — the collapse, the label merge, the duplicate
 `game_labels` fold, the singleton index refusing a second shelf, `join_shelf()` accepting and
@@ -303,8 +336,8 @@ refusing, the revoke trigger, the fresh-project bootstrap, and the RLS policies 
   no per-user shelves, nothing to create or switch between. Enforced in the schema, not just the UI.
 - **The shelf is never shown.** Confirmed on 2026-08-27: with only one, naming it is noise. No name
   in the header, no rename anywhere; the cog goes straight to people management.
-- **The shelf is collaborative, not read-only.** Everyone on it can add, edit and delete. Owners
-  additionally rename it and manage who is on it.
+- **Three roles, decided on 2026-08-27**: owner (everything), admin (games and labels), member
+  (read only). Enforced in RLS, not just the UI, because the anon key is public.
 - **Access is an allowlist of usernames, not invite links.** Chosen on 2026-08-27 over links and
   over auto-joining every sign-up. Email addresses are explicitly not required — supporting people
   without a mailbox was a stated goal.

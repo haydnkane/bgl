@@ -1,4 +1,26 @@
-export type LibraryRole = 'owner' | 'member';
+/**
+ * What someone may do.
+ *
+ *   owner   everything, including managing people and their roles
+ *   admin   adds, edits and deletes games and labels
+ *   member  read only — search and filter
+ *
+ * Enforced by row level security, not by the UI; see 0006_member_roles.sql.
+ */
+export type LibraryRole = 'owner' | 'admin' | 'member';
+
+export const ROLE_LABELS: Record<LibraryRole, string> = {
+  owner: 'Owner',
+  admin: 'Can edit',
+  member: 'View only',
+};
+
+/** What each role is allowed to do, in the words the settings screen uses. */
+export const ROLE_HINTS: Record<LibraryRole, string> = {
+  owner: 'Everything, including managing people',
+  admin: 'Add, edit and delete games and labels',
+  member: 'Search and browse only',
+};
 
 /**
  * The signed-in user's place in the collection.
@@ -21,8 +43,9 @@ export type LibraryMembership = {
 export type ShelfPerson = {
   username: string;
   display_name: string | null;
+  /** Null until they first sign in; the role applies from the moment they are added. */
   user_id: string | null;
-  role: LibraryRole | null;
+  role: LibraryRole;
   joined_at: string | null;
   added_at: string;
 };

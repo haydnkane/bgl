@@ -23,7 +23,7 @@ export default function LibraryScreen() {
   const { width } = useWindowDimensions();
   const [filter, setFilter] = usePersistentFilter();
 
-  const { loading: libraryLoading } = useLibrary();
+  const { loading: libraryLoading, canEdit, canManagePeople } = useLibrary();
   const { data: games = [], isLoading: gamesLoading, isRefetching, refetch, error } = useGames();
   const { data: labels = [] } = useLabels();
 
@@ -50,12 +50,17 @@ export default function LibraryScreen() {
         ListHeaderComponent={
           <View style={styles.header}>
             <View style={styles.titleRow}>
-              <Pressable
-                onPress={() => router.push('/settings')}
-                accessibilityLabel="Settings"
-                hitSlop={8}>
-                <Ionicons name="settings-outline" size={20} color={theme.textSecondary} />
-              </Pressable>
+              {canManagePeople ? (
+                <Pressable
+                  onPress={() => router.push('/settings')}
+                  accessibilityLabel="Settings"
+                  hitSlop={8}>
+                  <Ionicons name="settings-outline" size={20} color={theme.textSecondary} />
+                </Pressable>
+              ) : (
+                // Keeps "Sign out" pinned right when there is no cog to balance it.
+                <View />
+              )}
               <Pressable onPress={signOut} hitSlop={8}>
                 <ThemedText type="small" themeColor="textSecondary">
                   Sign out
@@ -91,7 +96,11 @@ export default function LibraryScreen() {
           ) : (
             <EmptyState
               title="Your shelf is empty"
-              message="Tap + to add your first game — search BoardGameGeek or enter it by hand."
+              message={
+                canEdit
+                  ? 'Tap + to add your first game — search BoardGameGeek or enter it by hand.'
+                  : 'Nothing has been added yet. Ask someone who can edit the collection.'
+              }
             />
           )
         }
@@ -102,16 +111,18 @@ export default function LibraryScreen() {
         )}
       />
 
-      <Pressable
-        onPress={() => router.push('/game/new')}
-        accessibilityLabel="Add game"
-        style={({ pressed }) => [
-          styles.fab,
-          { backgroundColor: theme.tint },
-          pressed && styles.pressed,
-        ]}>
-        <Ionicons name="add" size={28} color={theme.tintText} />
-      </Pressable>
+      {canEdit ? (
+        <Pressable
+          onPress={() => router.push('/game/new')}
+          accessibilityLabel="Add game"
+          style={({ pressed }) => [
+            styles.fab,
+            { backgroundColor: theme.tint },
+            pressed && styles.pressed,
+          ]}>
+          <Ionicons name="add" size={28} color={theme.tintText} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }

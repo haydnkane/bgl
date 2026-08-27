@@ -17,6 +17,10 @@ import type { LibraryRole } from '@/lib/types';
 type LibraryState = {
   libraryId: string | null;
   role: LibraryRole | null;
+  /** Owner or admin: may add, edit and delete games and labels. */
+  canEdit: boolean;
+  /** Owner only: may add and remove people, and set what they may do. */
+  canManagePeople: boolean;
   /** True until we know whether this account is allowed in. Nothing queries before then. */
   loading: boolean;
   /**
@@ -32,6 +36,8 @@ type LibraryState = {
 const LibraryContext = createContext<LibraryState>({
   libraryId: null,
   role: null,
+  canEdit: false,
+  canManagePeople: false,
   loading: true,
   lockedOut: null,
   error: null,
@@ -89,9 +95,15 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     // either a membership or a refusal.
     const awaitingJoin = membership === null && lockedOut === null;
 
+    const role = membership?.role ?? null;
+
     return {
       libraryId: membership?.library_id ?? null,
-      role: membership?.role ?? null,
+      role,
+      // Absent a known role the answer is "no": a screen that renders before membership
+      // resolves must not offer an action the database would refuse.
+      canEdit: role === 'owner' || role === 'admin',
+      canManagePeople: role === 'owner',
       loading: !signedOut && (membership === undefined || awaitingJoin),
       lockedOut,
       error: (error as Error | null) ?? null,

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useUserId } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
-import type { LibraryMembership, ShelfPerson } from '@/lib/types';
+import type { LibraryMembership, LibraryRole, ShelfPerson } from '@/lib/types';
 import { normalizeUsername } from '@/lib/username';
 
 /** Invalidation prefix; the live key is scoped to the user — see queries/games.ts for why. */
@@ -45,9 +45,11 @@ export async function joinShelf(): Promise<string> {
 }
 
 /** The allowlist: who may use the collection, and which of them have signed in. */
-export function useShelfPeople() {
+export function useShelfPeople(enabled = true) {
   return useQuery({
     queryKey: peopleKey,
+    // Only owners may call the RPC, so asking as anyone else is a guaranteed error.
+    enabled,
     queryFn: async (): Promise<ShelfPerson[]> => {
       const { data, error } = await supabase.rpc('list_shelf_people');
       if (error) throw error;
@@ -60,10 +62,10 @@ export function useAllowUser() {
   const queryClient = useQueryClient();
   const userId = useUserId();
   return useMutation({
-    mutationFn: async ({ username, displayName }: { username: string; displayName?: string }) => {
+    mutationFn: async ({ username, role }: { username: string; role: LibraryRole }) => {
       const { error } = await supabase.from('allowed_users').insert({
         username: normalizeUsername(username),
-        display_name: displayName?.trim() || null,
+        role,
         // The insert policy requires this to be the caller: an entry always records who
         // let that person in.
         added_by: userId,
@@ -71,6 +73,29 @@ export function useAllowUser() {
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: peopleKey }),
+  });
+}
+
+/**
+ * Changes what someone may do. Goes through an RPC rather than a table write because the
+ * role lives in two places — the allowlist and the membership row that RLS reads — and
+ * set_person_role() is what keeps them in step.
+ */
+export function useSetPersonRole() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ username, role }: { username: string; role: LibraryRole }) => {
+      const { error } = await supabase.rpc('set_person_role', {
+        uname: username,
+        new_role: role,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: peopleKey });
+      // Their own role may have changed; the app's affordances follow from it.
+      queryClient.invalidateQueries({ queryKey: shelfKey });
+    },
   });
 }
 

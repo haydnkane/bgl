@@ -3,38 +3,47 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/button';
+import { EmptyState } from '@/components/empty-state';
 import { Field } from '@/components/field';
+import { RolePicker } from '@/components/role-picker';
 import { ThemedText } from '@/components/themed-text';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useUserId } from '@/lib/auth';
 import { confirmDestructive } from '@/lib/confirm';
 import { useLibrary } from '@/lib/library';
-import { useAllowUser, useDisallowUser, useShelfPeople } from '@/lib/queries/libraries';
-import type { ShelfPerson } from '@/lib/types';
+import {
+  useAllowUser,
+  useDisallowUser,
+  useSetPersonRole,
+  useShelfPeople,
+} from '@/lib/queries/libraries';
+import { ROLE_LABELS, type LibraryRole, type ShelfPerson } from '@/lib/types';
 import { normalizeUsername, usernameProblem } from '@/lib/username';
 
+/** Your own row carries no picker, so it is the one place the role has to be spelled out. */
 function personStatus(person: ShelfPerson, isYou: boolean): string {
-  if (!person.user_id) return 'Has not signed in yet';
-  const role = person.role === 'owner' ? 'Owner' : 'Member';
-  return isYou ? `${role} · you` : role;
+  if (isYou) return `${ROLE_LABELS[person.role]} · you`;
+  return person.user_id ? 'Signed in' : 'Has not signed in yet';
 }
 
-/** Who can use the collection. Adding a username lets that person in; removing it locks them out. */
+/** Who can use the collection, and what each of them may do. */
 export default function SettingsScreen() {
   const theme = useTheme();
   const userId = useUserId();
-  const { role, loading } = useLibrary();
+  const { loading, canManagePeople } = useLibrary();
 
-  const { data: people = [], isLoading: peopleLoading } = useShelfPeople();
+  const { data: people = [], isLoading: peopleLoading } = useShelfPeople(canManagePeople);
   const allowUser = useAllowUser();
   const disallowUser = useDisallowUser();
+  const setPersonRole = useSetPersonRole();
 
   const [newUsername, setNewUsername] = useState('');
+  const [newRole, setNewRole] = useState<LibraryRole>('admin');
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  if (loading || peopleLoading) {
+  if (loading) {
     return (
       <View style={[styles.centered, { backgroundColor: theme.background }]}>
         <ActivityIndicator />
@@ -42,7 +51,26 @@ export default function SettingsScreen() {
     );
   }
 
-  const isOwner = role === 'owner';
+  // The cog is only shown to owners, but the route can still be reached directly.
+  if (!canManagePeople) {
+    return (
+      <View style={[styles.centered, { backgroundColor: theme.background }]}>
+        <EmptyState
+          icon="lock-closed-outline"
+          title="Owners only"
+          message="Only an owner can see who is on the collection and what they may do."
+        />
+      </View>
+    );
+  }
+
+  if (peopleLoading) {
+    return (
+      <View style={[styles.centered, { backgroundColor: theme.background }]}>
+        <ActivityIndicator />
+      </View>
+    );
+  }
 
   const add = async () => {
     const username = normalizeUsername(newUsername);
@@ -55,7 +83,7 @@ export default function SettingsScreen() {
 
     setError(null);
     try {
-      await allowUser.mutateAsync({ username });
+      await allowUser.mutateAsync({ username, role: newRole });
       setNewUsername('');
       setStatus(`"${username}" can now create an account and sign in.`);
     } catch (e) {
@@ -67,6 +95,20 @@ export default function SettingsScreen() {
           : message
       );
     }
+  };
+
+  const changeRole = (person: ShelfPerson, role: LibraryRole) => {
+    if (role === person.role) return;
+    setError(null);
+    setStatus(null);
+    setPersonRole.mutate(
+      { username: person.username, role },
+      {
+        onError: (e) =>
+          setError(e instanceof Error ? e.message : 'Could not change what they may do.'),
+        onSuccess: () => setStatus(`Updated "${person.username}".`),
+      }
+    );
   };
 
   const remove = (person: ShelfPerson) => {
@@ -98,7 +140,8 @@ export default function SettingsScreen() {
           {`PEOPLE (${people.length})`}
         </ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
-          Everyone listed here shares the same collection and can add, edit and delete games.
+          Everyone listed here shares the same collection. What each of them may do with it
+          is set here.
         </ThemedText>
 
         {people.map((person) => {
@@ -110,59 +153,67 @@ export default function SettingsScreen() {
                 styles.card,
                 { backgroundColor: theme.backgroundElement, borderColor: theme.border },
               ]}>
-              <View style={styles.flex}>
-                <ThemedText type="small" style={styles.username}>
-                  {person.username}
-                </ThemedText>
-                <ThemedText type="small" themeColor="textSecondary">
-                  {personStatus(person, isYou)}
-                </ThemedText>
+              <View style={styles.cardHead}>
+                <View style={styles.flex}>
+                  <ThemedText type="small" style={styles.username}>
+                    {person.username}
+                  </ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {personStatus(person, isYou)}
+                  </ThemedText>
+                </View>
+                {isYou ? null : (
+                  <Pressable
+                    onPress={() => remove(person)}
+                    hitSlop={8}
+                    accessibilityLabel={`Remove ${person.username}`}>
+                    <Ionicons name="person-remove-outline" size={20} color={theme.danger} />
+                  </Pressable>
+                )}
               </View>
-              {isOwner && !isYou ? (
-                <Pressable
-                  onPress={() => remove(person)}
-                  hitSlop={8}
-                  accessibilityLabel={`Remove ${person.username}`}>
-                  <Ionicons name="person-remove-outline" size={20} color={theme.danger} />
-                </Pressable>
-              ) : null}
+
+              {/* Your own row has no picker: the database refuses a self-demotion, so
+                  offering one would only produce an error. */}
+              {isYou ? null : (
+                <RolePicker
+                  compact
+                  value={person.role}
+                  onChange={(role) => changeRole(person, role)}
+                  disabled={setPersonRole.isPending}
+                />
+              )}
             </View>
           );
         })}
       </View>
 
-      {isOwner ? (
-        <View style={styles.section}>
-          <ThemedText type="smallBold" themeColor="textSecondary">
-            ADD SOMEONE
-          </ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            Add the username they will use, then tell them to open the app and create an
-            account with it. No email address is involved.
-          </ThemedText>
-          <View style={styles.row}>
-            <Field
-              value={newUsername}
-              onChangeText={setNewUsername}
-              placeholder="Username"
-              autoCapitalize="none"
-              autoCorrect={false}
-              onSubmitEditing={add}
-              containerStyle={styles.flex}
-            />
-            <Button
-              title="Add"
-              onPress={add}
-              disabled={!newUsername.trim()}
-              loading={allowUser.isPending}
-            />
-          </View>
-        </View>
-      ) : (
-        <ThemedText type="small" themeColor="textSecondary">
-          An owner can add and remove people.
+      <View style={styles.section}>
+        <ThemedText type="smallBold" themeColor="textSecondary">
+          ADD SOMEONE
         </ThemedText>
-      )}
+        <ThemedText type="small" themeColor="textSecondary">
+          Add the username they will use, then tell them to open the app and create an
+          account with it. No email address is involved.
+        </ThemedText>
+        <View style={styles.row}>
+          <Field
+            value={newUsername}
+            onChangeText={setNewUsername}
+            placeholder="Username"
+            autoCapitalize="none"
+            autoCorrect={false}
+            onSubmitEditing={add}
+            containerStyle={styles.flex}
+          />
+          <Button
+            title="Add"
+            onPress={add}
+            disabled={!newUsername.trim()}
+            loading={allowUser.isPending}
+          />
+        </View>
+        <RolePicker value={newRole} onChange={setNewRole} />
+      </View>
 
       {status ? (
         <ThemedText type="small" themeColor="textSecondary">
@@ -208,11 +259,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   card: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: Spacing.two,
     borderWidth: 1,
     borderRadius: Radius.md,
     padding: Spacing.three,
+  },
+  cardHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
   },
 });

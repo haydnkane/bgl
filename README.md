@@ -7,7 +7,7 @@ Expo / React Native codebase, backed by a Supabase project so both see the same 
 - Import cover art and metadata from BoardGameGeek
 - Tag games with your own colour-coded labels
 - Search by name, filter by label (match any or all), sort by name / year / rating / date added
-- One shared shelf for the whole household: everyone on it sees and edits the same collection
+- One shared shelf for the whole household, with per-person roles: owner, editor, or view-only
 
 ## Stack
 
@@ -71,12 +71,29 @@ npm run android    # Pixel emulator or a device running Expo Go
 There is **one shelf**, for everyone — the database enforces it, and there is no way to create a
 second. Who may use it is a list of usernames.
 
-1. An owner taps the cog at the top of the library, then adds the username under
-   **Add someone**.
+1. An owner taps the cog at the top of the library, adds the username under
+   **Add someone**, and picks what they may do.
 2. That person opens the app, chooses **First time here? Create an account**, and signs up with
    exactly that username and a password of their own.
-3. They are in. Everyone can add, edit and delete games and labels; owners can additionally add
-   and remove people.
+3. They are in, with the role you chose. You can change it later from the same screen.
+
+#### What each role may do
+
+| | Browse, search, filter | Add / edit / delete games and labels | Manage people |
+|---|---|---|---|
+| **View only** (`member`) | yes | — | — |
+| **Can edit** (`admin`) | yes | yes | — |
+| **Owner** | yes | yes | yes |
+
+Only owners see the cog at all. A view-only member gets no add button and a read-only game page.
+
+None of that is UI-deep: the anon key ships inside the web bundle by design, so the split is written
+into the row level security policies — reading is open to everyone on the list, and every way of
+changing a row also asks whether the caller may write. Hiding a button is a courtesy; the policy is
+the rule.
+
+An owner cannot demote or remove themselves, so the collection can never end up with nobody able to
+manage it.
 
 Removing someone from the list revokes their access immediately — a database trigger drops their
 membership with the entry. The games they added stay. Signing in with a username nobody has added

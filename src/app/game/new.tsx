@@ -3,12 +3,14 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { EmptyState } from '@/components/empty-state';
 import { GameForm, type GameFormValues } from '@/components/game-form';
 import { SearchBar } from '@/components/search-bar';
 import { ThemedText } from '@/components/themed-text';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { bggDetailToGameInput, fetchBggGame, searchBgg, type BggSearchResult } from '@/lib/bgg';
+import { useLibrary } from '@/lib/library';
 import { useAddGame } from '@/lib/queries/games';
 import type { GameInput } from '@/lib/types';
 
@@ -145,6 +147,7 @@ function BggSearch({ onPick }: { onPick: (input: GameInput) => void }) {
 export default function NewGameScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const { canEdit, loading } = useLibrary();
   const addGame = useAddGame();
   const [mode, setMode] = useState<Mode>('bgg');
   const [prefill, setPrefill] = useState<GameInput | null>(null);
@@ -160,6 +163,20 @@ export default function NewGameScreen() {
       setError(e instanceof Error ? e.message : 'Could not save that game.');
     }
   };
+
+  // The add button is hidden for view-only members, but the route can still be reached
+  // directly — by a deep link, or by a role that changed while the screen was open.
+  if (!loading && !canEdit) {
+    return (
+      <View style={[styles.centered, { backgroundColor: theme.background }]}>
+        <EmptyState
+          icon="lock-closed-outline"
+          title="View only"
+          message="You can browse and search the collection, but not add to it. An owner can change that."
+        />
+      </View>
+    );
+  }
 
   return (
     <ScrollView
@@ -227,6 +244,11 @@ export default function NewGameScreen() {
 }
 
 const styles = StyleSheet.create({
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   scroll: {
     padding: Spacing.three,
     gap: Spacing.three,

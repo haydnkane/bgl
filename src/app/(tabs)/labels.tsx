@@ -33,7 +33,15 @@ function ColorSwatches({ value, onChange }: { value: string; onChange: (color: s
   );
 }
 
-function LabelRow({ label, usageCount }: { label: Label; usageCount: number }) {
+function LabelRow({
+  label,
+  usageCount,
+  canEdit,
+}: {
+  label: Label;
+  usageCount: number;
+  canEdit: boolean;
+}) {
   const theme = useTheme();
   const updateLabel = useUpdateLabel();
   const deleteLabel = useDeleteLabel();
@@ -74,7 +82,10 @@ function LabelRow({ label, usageCount }: { label: Label; usageCount: number }) {
               style={[styles.nameInput, { color: theme.text }]}
             />
           ) : (
-            <Pressable onPress={() => setEditing(true)} style={styles.nameInput}>
+            <Pressable
+              onPress={() => canEdit && setEditing(true)}
+              disabled={!canEdit}
+              style={styles.nameInput}>
               <ThemedText type="default" style={styles.nameText}>
                 {label.name}
               </ThemedText>
@@ -86,19 +97,26 @@ function LabelRow({ label, usageCount }: { label: Label; usageCount: number }) {
           {usageCount} game{usageCount === 1 ? '' : 's'}
         </ThemedText>
 
-        <ColorSwatches value={label.color} onChange={(color) => updateLabel.mutate({ id: label.id, color })} />
+        {canEdit ? (
+          <ColorSwatches
+            value={label.color}
+            onChange={(color) => updateLabel.mutate({ id: label.id, color })}
+          />
+        ) : null}
       </View>
 
-      <Pressable onPress={remove} hitSlop={8} accessibilityLabel={`Delete ${label.name}`}>
-        <Ionicons name="trash-outline" size={20} color={theme.danger} />
-      </Pressable>
+      {canEdit ? (
+        <Pressable onPress={remove} hitSlop={8} accessibilityLabel={`Delete ${label.name}`}>
+          <Ionicons name="trash-outline" size={20} color={theme.danger} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
 
 export default function LabelsScreen() {
   const theme = useTheme();
-  const { loading: libraryLoading } = useLibrary();
+  const { loading: libraryLoading, canEdit } = useLibrary();
   const { data: labels = [], isLoading: labelsLoading } = useLabels();
   const { data: games = [] } = useGames();
   // The labels query has not run until membership is known — see (tabs)/index.tsx.
@@ -130,32 +148,40 @@ export default function LabelsScreen() {
       keyExtractor={(label) => label.id}
       contentContainerStyle={styles.list}
       ListHeaderComponent={
-        <View style={styles.createBlock}>
-          <Field label="New label" value={newName} onChangeText={setNewName} placeholder="Co-op" />
-          <ColorSwatches value={newColor} onChange={setNewColor} />
-          {error ? (
-            <ThemedText type="small" style={{ color: theme.danger }}>
-              {error}
-            </ThemedText>
-          ) : null}
-          <Button
-            title="Add label"
-            onPress={create}
-            disabled={!newName.trim()}
-            loading={addLabel.isPending}
-          />
-        </View>
+        canEdit ? (
+          <View style={styles.createBlock}>
+            <Field label="New label" value={newName} onChangeText={setNewName} placeholder="Co-op" />
+            <ColorSwatches value={newColor} onChange={setNewColor} />
+            {error ? (
+              <ThemedText type="small" style={{ color: theme.danger }}>
+                {error}
+              </ThemedText>
+            ) : null}
+            <Button
+              title="Add label"
+              onPress={create}
+              disabled={!newName.trim()}
+              loading={addLabel.isPending}
+            />
+          </View>
+        ) : null
       }
       ListEmptyComponent={
         isLoading ? null : (
           <EmptyState
             icon="pricetags-outline"
             title="No labels yet"
-            message="Labels are how you filter the shelf — try Co-op, Heavy, or Two player."
+            message={
+              canEdit
+                ? 'Labels are how you filter the shelf — try Co-op, Heavy, or Two player.'
+                : 'Nobody has added a label yet.'
+            }
           />
         )
       }
-      renderItem={({ item }) => <LabelRow label={item} usageCount={usage(item.id)} />}
+      renderItem={({ item }) => (
+        <LabelRow label={item} usageCount={usage(item.id)} canEdit={canEdit} />
+      )}
     />
   );
 }
