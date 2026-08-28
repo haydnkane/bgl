@@ -71,7 +71,7 @@ export default function LibraryScreen() {
   );
 
   const columns = columnsFor(density, width);
-  const condensed = density === 'condensed';
+  const expanded = density === 'expanded';
 
   // Tiles share the row width evenly, so a half-empty last row would stretch its few
   // tiles across the whole shelf. Blank cells hold the gaps open instead.
@@ -107,11 +107,11 @@ export default function LibraryScreen() {
             <View style={styles.countRow}>
               <View style={styles.countGroup}>
                 <Pressable
-                  onPress={() => setDensity(condensed ? 'default' : 'condensed')}
+                  onPress={() => setDensity(expanded ? 'default' : 'expanded')}
                   hitSlop={8}
-                  accessibilityLabel={condensed ? 'Show fewer games per row' : 'Show more games per row'}>
+                  accessibilityLabel={expanded ? 'Show more games per row' : 'Show fewer games per row'}>
                   <Ionicons
-                    name={condensed ? 'apps-outline' : 'grid-outline'}
+                    name={expanded ? 'grid-outline' : 'apps-outline'}
                     size={18}
                     color={theme.textSecondary}
                   />

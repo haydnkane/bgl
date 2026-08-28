@@ -4,19 +4,23 @@ import { useCallback, useEffect, useState } from 'react';
 const STORAGE_KEY = 'boardgame-shelf.density';
 
 /** How tightly the shelf tiles games. Persisted, like the filter. */
-export type Density = 'default' | 'condensed';
+export type Density = 'default' | 'expanded';
 
-/** Above this the shelf is treated as a desktop and fits one more tile per row. */
-const DESKTOP_WIDTH = 900;
+/**
+ * Where a phone becomes a tablet. Tablets and desktops fit the same number of tiles per
+ * row, so this is the only width the grid has to care about — it sits low enough to catch
+ * an iPad held in portrait.
+ */
+const TABLET_WIDTH = 700;
 
-const COLUMNS: Record<Density, { phone: number; desktop: number }> = {
-  default: { phone: 2, desktop: 3 },
-  condensed: { phone: 3, desktop: 4 },
+const COLUMNS: Record<Density, { phone: number; wide: number }> = {
+  default: { phone: 3, wide: 6 },
+  expanded: { phone: 2, wide: 4 },
 };
 
 export function columnsFor(density: Density, width: number): number {
   const counts = COLUMNS[density];
-  return width >= DESKTOP_WIDTH ? counts.desktop : counts.phone;
+  return width >= TABLET_WIDTH ? counts.wide : counts.phone;
 }
 
 export function usePersistentDensity() {
@@ -26,7 +30,7 @@ export function usePersistentDensity() {
     let cancelled = false;
     AsyncStorage.getItem(STORAGE_KEY)
       .then((raw) => {
-        if (cancelled || (raw !== 'default' && raw !== 'condensed')) return;
+        if (cancelled || (raw !== 'default' && raw !== 'expanded')) return;
         setDensity(raw);
       })
       .catch(() => {
