@@ -1,13 +1,17 @@
 {
   "expo": {
     "name": "Board Game Shelf",
-    "slug": "boardgame-shelf",
+    "slug": "bgl",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "boardgameshelf",
     "userInterfaceStyle": "automatic",
     "android": {
+      "package": "io.github.usefulcat.boardgameshelf",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -35,6 +39,17 @@
       "baseUrl": "/bgl",
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f0956c4d-45c1-4720-8ab5-6ab7c86b5929"
+      }
+    },
+    "owner": "usefulcats-team",
+    "updates": {
+      "url": "https://u.expo.dev/f0956c4d-45c1-4720-8ab5-6ab7c86b5929"
+    },
+    "ios": {}
   }
 }

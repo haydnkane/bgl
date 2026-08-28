@@ -162,11 +162,17 @@ Under **Settings → Pages**, set the source to **GitHub Actions**. Then add the
 | `SUPABASE_DB_URL` | Secret | Postgres connection string, from Dashboard → Connect |
 | `SUPABASE_ACCESS_TOKEN` | Secret | Personal access token, from Account → Access Tokens |
 | `SUPABASE_PROJECT_REF` | Variable | Your project ref |
+| `EXPO_TOKEN` | Secret | Expo access token, for the Android OTA job |
+| `EAS_UPDATES_ENABLED` | Variable | `true` to switch the Android OTA job on |
 
 The two `EXPO_PUBLIC_` values are stored as secrets for tidiness, but they are compiled into the
 JS bundle and readable by anyone who loads the site. That is expected — the anon key is public by
 design and row level security is what protects the data. `SUPABASE_DB_URL` and
 `SUPABASE_ACCESS_TOKEN` are genuinely secret and must never reach the client.
+
+The last two rows only matter for Android and are covered in [Android APK](#android-apk).
+The `update` job stays skipped while `EAS_UPDATES_ENABLED` is unset, so the web deploy runs
+fine without them.
 
 ### Migrations
 
@@ -177,9 +183,118 @@ sign-off first, add yourself as a required reviewer on the `bgl` environment und
 
 ## Android APK
 
+Android is distributed by sideloading a signed APK — no Play Store listing, no developer account.
+`eas.json` defines one build profile, `preview`, which produces an installable APK through EAS
+Build's internal distribution. Once installed, the app pulls new JavaScript over the air on launch,
+so most changes reach the phone without anyone reinstalling anything.
+
+### One-time setup
+
+Do all four of these before the first build. Step 3 in particular has to happen first: the update
+URL is baked into the binary, and an APK built before it exists can never receive an update.
+
+**1. Link the project to EAS**
+
 ```bash
-npx eas build -p android --profile preview
+npx eas-cli login     # free Expo account, interactive
+npx eas-cli init      # writes extra.eas.projectId into app.json
 ```
+
+**2. Give EAS the Supabase credentials**
+
+EAS builds run on Expo's servers from the **git-tracked** files, so `.env.local` never reaches
+them. `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` are inlined into the bundle at
+build time and `src/lib/supabase.ts` throws on startup when they are missing — an APK built without
+them crashes the moment it opens.
+
+```bash
+npx eas-cli env:set --environment production --visibility plaintext --name EXPO_PUBLIC_SUPABASE_URL --value https://<your-project-ref>.supabase.co
+
+npx eas-cli env:set --environment production --visibility plaintext --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value <your-anon-key>
+```
+
+`plaintext` is deliberate: both values are public by design — the same pair the web deploy inlines
+from repository secrets. Check them with `npx eas-cli env:list --environment production`.
+
+The `preview` build profile reads from the `production` environment because there is one Supabase
+project behind both web and Android, not two. The OTA workflow reads from it as well, so the APK
+and the JavaScript that later replaces its own are always built against the same backend.
+
+**3. Turn on updates**
+
+```bash
+npx eas-cli update:configure
+```
+
+This writes `updates.url` into `app.json`. `runtimeVersion` is already set to the `fingerprint`
+policy and `eas.json` already puts builds on the `production` channel, so there is nothing else to
+edit here.
+
+**4. Let CI publish updates**
+
+Create an access token at **expo.dev → account settings → access tokens**, then in this repository
+under **Settings → Secrets and variables → Actions**:
+
+- add a secret `EXPO_TOKEN` with that token
+- add a variable `EAS_UPDATES_ENABLED` set to `true`
+
+The `update` job in `deploy.yml` is skipped entirely until that variable is `true`, so the web
+deploy is never taken down by a half-configured EAS setup.
+
+### Building the APK
+
+```bash
+npm run build:android
+```
+
+The first build asks to generate an Android keystore — say yes. EAS stores it against the project
+and reuses it for every build after, which is what lets a new APK install over the old one.
+
+The build finishes with a URL and a QR code. Scan it with the phone, download, and accept Android's
+prompt to allow installs from the browser. Nothing needs registering per device, and the other
+people on the shelf just need the same link. Alternatively, with a device on USB or the emulator
+running:
+
+```bash
+npx eas-cli build:run -p android --latest            # emulator
+npx eas-cli build:run -p android --latest --device   # attached phone
+```
+
+`appVersionSource: "remote"` in `eas.json` means EAS tracks `versionCode` and bumps it on each
+build, so updates install cleanly over the previous version without hand-editing `app.json`.
+
+Back the keystore up with `npx eas-cli credentials`. If it is lost, Android refuses to install any
+future APK over the installed app — it has to be uninstalled first, which takes the local session
+with it.
+
+### Over-the-air updates
+
+After setup, every push to `main` publishes a new JavaScript bundle to the `production` channel,
+gated behind the same migration job as the web deploy so the database is never behind the code.
+
+Installed apps check for it on launch, download in the background, and run it on the **next**
+launch — so a change lands on the second open, not the first. That is `expo-updates` default
+behaviour, not a bug.
+
+To publish by hand:
+
+```bash
+npx eas-cli update --channel production --environment production --message "what changed"
+```
+
+**When a new APK is unavoidable.** `runtimeVersion` uses the `fingerprint` policy, which hashes
+everything that affects the native build. Add or upgrade a native dependency and the fingerprint
+changes, so already-installed APKs stop matching and quietly stop receiving updates — correct
+behaviour, since that JavaScript would crash against the old native code, but it is silent. Any
+change to `package.json` native dependencies, `app.json` plugins, or the Expo SDK version means
+rebuilding and redistributing the APK. Pure JavaScript, styling and route changes go over the air.
+
+### If the Play Store ever comes up
+
+Add a second profile with `"buildType": "app-bundle"` and `"distribution": "store"`, plus a
+`submit` block with a Google service account key, then `npx eas-cli submit -p android`. Be aware
+that a personal Play developer account created after 13 November 2023 must first run a closed test
+with 12 testers opted in for 14 continuous days before it can be granted production access.
 
 ## Layout
 

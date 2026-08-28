@@ -21,6 +21,7 @@
     "expo-status-bar": "~57.0.1",
     "expo-symbols": "~57.0.2",
     "expo-system-ui": "~57.0.2",
+    "expo-updates": "~57.0.18",
     "expo-web-browser": "~57.0.2",
     "react": "19.2.3",
     "react-dom": "19.2.3",
@@ -46,6 +47,7 @@
     "android": "expo start --android",
     "web": "expo start --web",
     "lint": "expo lint",
+    "build:android": "eas build --platform android --profile preview",
     "test": "jest",
     "typecheck": "tsc --noEmit"
   },

@@ -321,9 +321,21 @@ refusing, the revoke trigger, the fresh-project bootstrap, and the RLS policies 
    for the two destructive confirmations.
 3. **The cross-device check.** Add a game in the browser, open Android, confirm it appears. This is
    the whole reason the project chose cloud storage over local, and it has never been tested.
-4. **APK:** `npx eas build:configure` first — there is no `eas.json`, so the previously suggested
-   `--profile preview` does not exist yet. Then `npx eas build -p android --profile preview`.
-   Needs a free Expo account; `eas login` is interactive.
+4. **APK and over-the-air updates:** the repo side is done — `eas.json` with a `preview` profile
+   (internal distribution, APK, `production` channel), `android.package` and a `fingerprint`
+   `runtimeVersion` in `app.json`, `expo-updates` installed, and an `update` job in `deploy.yml`
+   that publishes to the `production` channel on every push to `main`.
+
+   What is left is all account-side and interactive: `npx eas-cli login`, `npx eas-cli init`, set
+   `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_ANON_KEY` as EAS environment variables
+   (`.env.local` is gitignored so it never reaches the build server, and `src/lib/supabase.ts`
+   throws on startup without them), `npx eas-cli update:configure`, then `npm run build:android`.
+
+   Two ordering traps: `update:configure` must run **before** the first build, or the APK ships
+   with no update URL and can never receive one; and the `update` job stays skipped until the
+   repository variable `EAS_UPDATES_ENABLED` is `true`, which is deliberate so a missing
+   `EXPO_TOKEN` cannot fail the run that also deploys the web build. Full sequence in **Android
+   APK** in the README.
 5. *Optional:* `npx expo export -p web` and host `dist/` on Netlify / Cloudflare Pages.
 
 ---

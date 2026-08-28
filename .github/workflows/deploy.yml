@@ -133,3 +133,39 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  update:
+    name: Push Android OTA update
+    # Same gate as the web deploy: migrations land before the JS that expects them.
+    needs: supabase
+    runs-on: ubuntu-latest
+    # Dormant until the repository variable is set to "true". Without it a repo with
+    # no EXPO_TOKEN would fail this job on every push and take the web deploy's run
+    # down with it. Flip it on after creating the token - see README > Android APK.
+    if: vars.EAS_UPDATES_ENABLED == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+          packager: npm
+
+      - run: npm ci
+
+      # --environment production pulls EXPO_PUBLIC_SUPABASE_URL and
+      # EXPO_PUBLIC_SUPABASE_ANON_KEY from EAS rather than from repository secrets.
+      # That is deliberate: the APK and the JS bundle that replaces its own must be
+      # built against the same backend, so both read from the one place.
+      #
+      # The commit subject is read through git rather than interpolated from the
+      # github context, which keeps a commit message out of the shell command line.
+      - name: Publish update
+        run: |
+          eas update --channel production --environment production --message "$(git log -1 --pretty=%s)"
