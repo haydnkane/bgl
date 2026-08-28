@@ -1,7 +1,6 @@
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/empty-state';
 import { FilterSortBar, type HeartFilterPerson } from '@/components/filter-sort-bar';
@@ -21,12 +20,13 @@ import { useGameRatings } from '@/lib/queries/ratings';
 
 export default function LibraryScreen() {
   const theme = useTheme();
-  const router = useRouter();
   const { width } = useWindowDimensions();
+  // This screen has no header, so the status bar is ours to clear.
+  const insets = useSafeAreaInsets();
   const userId = useUserId();
   const [filter, setFilter] = usePersistentFilter();
 
-  const { loading: libraryLoading, canEdit, canManagePeople } = useLibrary();
+  const { loading: libraryLoading, canEdit } = useLibrary();
   const { data: games = [], isLoading: gamesLoading, isRefetching, refetch, error } = useGames();
   const { data: labels = [] } = useLabels();
   const { data: ratingRows = [] } = useGameRatings();
@@ -77,22 +77,11 @@ export default function LibraryScreen() {
         numColumns={columns}
         keyExtractor={(game) => game.id}
         columnWrapperStyle={columns > 1 ? styles.column : undefined}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingTop: insets.top + Spacing.three }]}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
         ListHeaderComponent={
           <View style={styles.header}>
             <View style={styles.titleRow}>
-              {canManagePeople ? (
-                <Pressable
-                  onPress={() => router.push('/settings')}
-                  accessibilityLabel="Settings"
-                  hitSlop={8}>
-                  <Ionicons name="settings-outline" size={20} color={theme.textSecondary} />
-                </Pressable>
-              ) : (
-                // Keeps "Sign out" pinned right when there is no cog to balance it.
-                <View />
-              )}
               <Pressable onPress={signOut} hitSlop={8}>
                 <ThemedText type="small" themeColor="textSecondary">
                   Sign out
@@ -135,7 +124,7 @@ export default function LibraryScreen() {
               title="Your shelf is empty"
               message={
                 canEdit
-                  ? 'Tap + to add your first game — search BoardGameGeek or enter it by hand.'
+                  ? 'Use Add game in the toolbar below — search BoardGameGeek or enter it by hand.'
                   : 'Nothing has been added yet. Ask someone who can edit the collection.'
               }
             />
@@ -147,19 +136,6 @@ export default function LibraryScreen() {
           </View>
         )}
       />
-
-      {canEdit ? (
-        <Pressable
-          onPress={() => router.push('/game/new')}
-          accessibilityLabel="Add game"
-          style={({ pressed }) => [
-            styles.fab,
-            { backgroundColor: theme.tint },
-            pressed && styles.pressed,
-          ]}>
-          <Ionicons name="add" size={28} color={theme.tintText} />
-        </Pressable>
-      ) : null}
     </View>
   );
 }
@@ -182,25 +158,12 @@ const styles = StyleSheet.create({
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
   },
   column: {
     gap: Spacing.two,
   },
   cell: {
     flex: 1,
-  },
-  fab: {
-    position: 'absolute',
-    right: Spacing.four,
-    bottom: Spacing.four,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pressed: {
-    opacity: 0.8,
   },
 });

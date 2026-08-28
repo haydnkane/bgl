@@ -158,7 +158,11 @@ export default function NewGameScreen() {
     setError(null);
     try {
       await addGame.mutateAsync({ input, labelIds });
-      router.back();
+      // A tab stays mounted after you leave it, so the next visit would otherwise open
+      // on the game just added. Clear it out, then show the shelf it landed on.
+      setPrefill(null);
+      setMode('bgg');
+      router.navigate('/');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save that game.');
     }

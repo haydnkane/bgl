@@ -80,12 +80,13 @@ export default function SignInScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.scroll}>
           <View style={styles.card}>
-            <ThemedText type="subtitle">Board Game Shelf</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              {isSignUp
-                ? 'Pick a username and a password. You will need someone already on the shelf to have added that username.'
-                : 'Sign in to reach the shelf.'}
-            </ThemedText>
+            <ThemedText type="subtitle">Our Games</ThemedText>
+            {isSignUp ? (
+              <ThemedText type="small" themeColor="textSecondary">
+                Pick a username and a password. You will need someone already on the shelf
+                to have added that username.
+              </ThemedText>
+            ) : null}
 
             <Field
               label="Username"
@@ -130,7 +131,7 @@ export default function SignInScreen() {
               hitSlop={8}
               style={styles.toggle}>
               <ThemedText type="small" themeColor="textSecondary">
-                {isSignUp ? 'Already have an account? Sign in' : 'First time here? Create an account'}
+                {isSignUp ? 'Already have an account? Sign in' : 'Create account'}
               </ThemedText>
             </Pressable>
           </View>
