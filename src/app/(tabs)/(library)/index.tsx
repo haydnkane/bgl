@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useMemo } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -55,6 +56,11 @@ export default function LibraryScreen() {
     [people, userId]
   );
 
+  const myName = useMemo(() => {
+    const me = people.find((person) => person.user_id === userId);
+    return me ? (me.display_name ?? me.username) : null;
+  }, [people, userId]);
+
   // The viewer's own rating is what a card shows; indexRatings only keeps their stars, so
   // the heart is read from the rows.
   const myRatings = useMemo(
@@ -81,21 +87,31 @@ export default function LibraryScreen() {
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
         ListHeaderComponent={
           <View style={styles.header}>
-            <View style={styles.titleRow}>
-              <Pressable onPress={signOut} hitSlop={8}>
-                <ThemedText type="small" themeColor="textSecondary">
-                  Sign out
-                </ThemedText>
-              </Pressable>
-            </View>
+            <View style={styles.countRow}>
+              <ThemedText type="smallBold" themeColor="textSecondary">
+                {games.length === 0
+                  ? 'No games yet'
+                  : isFiltered
+                    ? `${visible.length} of ${games.length} games`
+                    : `${games.length} game${games.length === 1 ? '' : 's'}`}
+              </ThemedText>
 
-            <ThemedText type="smallBold" themeColor="textSecondary">
-              {games.length === 0
-                ? 'No games yet'
-                : isFiltered
-                  ? `${visible.length} of ${games.length} games`
-                  : `${games.length} game${games.length === 1 ? '' : 's'}`}
-            </ThemedText>
+              <View style={styles.account}>
+                {myName ? (
+                  <ThemedText
+                    type="small"
+                    themeColor="textSecondary"
+                    numberOfLines={1}
+                    style={styles.accountName}>
+                    {myName}
+                  </ThemedText>
+                ) : null}
+                {/* The name beside it is a label, not a target: only the glyph signs out. */}
+                <Pressable onPress={signOut} hitSlop={8} accessibilityLabel="Sign out">
+                  <Ionicons name="log-out-outline" size={20} color={theme.textSecondary} />
+                </Pressable>
+              </View>
+            </View>
 
             <SearchBar value={filter.search} onChange={(search) => setFilter({ ...filter, search })} />
             <FilterSortBar
@@ -155,10 +171,21 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     marginBottom: Spacing.two,
   },
-  titleRow: {
+  countRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
+  },
+  account: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    // Yields to the count rather than pushing it off the row.
+    flexShrink: 1,
+  },
+  accountName: {
+    flexShrink: 1,
   },
   column: {
     gap: Spacing.two,
