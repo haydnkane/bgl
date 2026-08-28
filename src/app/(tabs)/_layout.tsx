@@ -14,6 +14,9 @@ export default function TabsLayout() {
         tabBarActiveTintColor: theme.tint,
         tabBarInactiveTintColor: theme.textSecondary,
         tabBarStyle: { backgroundColor: theme.background, borderTopColor: theme.border },
+        // The label is clamped to one line, and without an explicit lineHeight that box
+        // is drawn too short for descenders — the tails of "g" and "j" get shaved off.
+        tabBarLabelStyle: { fontSize: 11, lineHeight: 16 },
         headerStyle: { backgroundColor: theme.background },
         headerTintColor: theme.text,
       }}>

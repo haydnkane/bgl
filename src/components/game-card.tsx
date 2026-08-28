@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Link } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { HeartToggle } from '@/components/heart-toggle';
 import { LabelChip } from '@/components/label-chip';
@@ -72,11 +72,15 @@ export function GameCard({ game, labels, rating = null }: Props) {
           ) : null}
 
           {gameLabels.length ? (
-            <View style={styles.labels}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              nestedScrollEnabled
+              contentContainerStyle={styles.labels}>
               {gameLabels.map((label) => (
                 <LabelChip key={label.id} label={label} size="sm" />
               ))}
-            </View>
+            </ScrollView>
           ) : null}
         </View>
       </Pressable>
@@ -86,8 +90,8 @@ export function GameCard({ game, labels, rating = null }: Props) {
 
 const styles = StyleSheet.create({
   card: {
-    flexDirection: 'row',
-    gap: Spacing.three,
+    flex: 1,
+    gap: Spacing.two,
     padding: Spacing.two,
     borderRadius: Radius.lg,
     borderWidth: 1,
@@ -96,8 +100,8 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   cover: {
-    width: 72,
-    height: 72,
+    width: '100%',
+    aspectRatio: 1,
     borderRadius: Radius.md,
   },
   coverFallback: {
@@ -105,8 +109,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   body: {
-    flex: 1,
-    justifyContent: 'center',
     gap: Spacing.half,
   },
   name: {
@@ -124,8 +126,8 @@ const styles = StyleSheet.create({
   },
   labels: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: Spacing.one,
     marginTop: Spacing.half,
+    paddingRight: Spacing.two,
   },
 });

@@ -9,6 +9,7 @@ import { GameCard } from '@/components/game-card';
 import { SearchBar } from '@/components/search-bar';
 import { ThemedText } from '@/components/themed-text';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { columnsFor, usePersistentDensity } from '@/hooks/use-density';
 import { usePersistentFilter } from '@/hooks/use-persistent-filter';
 import { useTheme } from '@/hooks/use-theme';
 import { signOut, useUserId } from '@/lib/auth';
@@ -26,6 +27,7 @@ export default function LibraryScreen() {
   const insets = useSafeAreaInsets();
   const userId = useUserId();
   const [filter, setFilter] = usePersistentFilter();
+  const [density, setDensity] = usePersistentDensity();
 
   const { loading: libraryLoading, canEdit } = useLibrary();
   const { data: games = [], isLoading: gamesLoading, isRefetching, refetch, error } = useGames();
@@ -68,8 +70,23 @@ export default function LibraryScreen() {
     [ratingRows, userId]
   );
 
-  // Two columns once there is room for two full-width cards side by side.
-  const columns = width >= 900 ? 2 : 1;
+  const columns = columnsFor(density, width);
+  const condensed = density === 'condensed';
+
+  // Tiles share the row width evenly, so a half-empty last row would stretch its few
+  // tiles across the whole shelf. Blank cells hold the gaps open instead.
+  const cells = useMemo(() => {
+    const filled = visible.map((game) => ({ key: game.id, game }));
+    const remainder = visible.length % columns;
+    if (remainder === 0) return filled;
+    return [
+      ...filled,
+      ...Array.from({ length: columns - remainder }, (_, i) => ({
+        key: `filler-${i}`,
+        game: null,
+      })),
+    ];
+  }, [visible, columns]);
   const isFiltered =
     filter.search.trim().length > 0 ||
     filter.labelIds.length > 0 ||
@@ -79,22 +96,34 @@ export default function LibraryScreen() {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <FlatList
         key={`columns-${columns}`}
-        data={visible}
+        data={cells}
         numColumns={columns}
-        keyExtractor={(game) => game.id}
-        columnWrapperStyle={columns > 1 ? styles.column : undefined}
+        keyExtractor={(cell) => cell.key}
+        columnWrapperStyle={styles.column}
         contentContainerStyle={[styles.list, { paddingTop: insets.top + Spacing.three }]}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
         ListHeaderComponent={
           <View style={styles.header}>
             <View style={styles.countRow}>
-              <ThemedText type="smallBold" themeColor="textSecondary">
-                {games.length === 0
-                  ? 'No games yet'
-                  : isFiltered
-                    ? `${visible.length} of ${games.length} games`
-                    : `${games.length} game${games.length === 1 ? '' : 's'}`}
-              </ThemedText>
+              <View style={styles.countGroup}>
+                <Pressable
+                  onPress={() => setDensity(condensed ? 'default' : 'condensed')}
+                  hitSlop={8}
+                  accessibilityLabel={condensed ? 'Show fewer games per row' : 'Show more games per row'}>
+                  <Ionicons
+                    name={condensed ? 'apps-outline' : 'grid-outline'}
+                    size={18}
+                    color={theme.textSecondary}
+                  />
+                </Pressable>
+                <ThemedText type="smallBold" themeColor="textSecondary">
+                  {games.length === 0
+                    ? 'No games yet'
+                    : isFiltered
+                      ? `${visible.length} of ${games.length} games`
+                      : `${games.length} game${games.length === 1 ? '' : 's'}`}
+                </ThemedText>
+              </View>
 
               <View style={styles.account}>
                 {myName ? (
@@ -147,8 +176,14 @@ export default function LibraryScreen() {
           )
         }
         renderItem={({ item }) => (
-          <View style={columns > 1 ? styles.cell : undefined}>
-            <GameCard game={item} labels={labels} rating={myRatings.get(item.id) ?? null} />
+          <View style={styles.cell}>
+            {item.game ? (
+              <GameCard
+                game={item.game}
+                labels={labels}
+                rating={myRatings.get(item.game.id) ?? null}
+              />
+            ) : null}
           </View>
         )}
       />
@@ -176,6 +211,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: Spacing.two,
+  },
+  countGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    flexShrink: 1,
   },
   account: {
     flexDirection: 'row',
