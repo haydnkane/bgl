@@ -6,8 +6,12 @@ Expo / React Native codebase, backed by a Supabase project so both see the same 
 - Add, edit and delete games
 - Import cover art and metadata from BoardGameGeek
 - Tag games with your own colour-coded labels
-- Search by name, filter by label (match any or all), sort by name / year / rating / date added
-- One shared shelf for the whole household, with per-person roles: owner, editor, or view-only
+- Rate a game out of five stars and heart the ones you love — everyone keeps their own score,
+  and sees everyone else's
+- Search by name, filter by label (match any or all) or by who loves a game, sort by name / year /
+  your rating / date added
+- One shared shelf for the whole household, with per-person roles: owner, editor, or view-only.
+  Rating is the one thing every role can do, view-only included
 
 ## Stack
 

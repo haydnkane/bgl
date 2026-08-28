@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/button';
@@ -16,6 +16,12 @@ type Props = {
   initial?: Partial<GameWithLabels> & { labelIds?: string[] };
   submitTitle: string;
   submitting?: boolean;
+  /**
+   * Rendered directly under the name. The game page puts the star rating here, so it reads
+   * as part of the game rather than part of the form — which it is: stars save on tap,
+   * and nothing below them does.
+   */
+  ratingSlot?: ReactNode;
   onSubmit: (values: GameFormValues) => void;
 };
 
@@ -31,43 +37,44 @@ function toText(value: number | null | undefined): string {
   return value === null || value === undefined ? '' : String(value);
 }
 
-export function GameForm({ initial, submitTitle, submitting = false, onSubmit }: Props) {
+export function GameForm({
+  initial,
+  submitTitle,
+  submitting = false,
+  ratingSlot,
+  onSubmit,
+}: Props) {
   const theme = useTheme();
   const [name, setName] = useState(initial?.name ?? '');
-  const [imageUrl, setImageUrl] = useState(initial?.image_url ?? '');
   const [year, setYear] = useState(toText(initial?.year_published));
   const [minPlayers, setMinPlayers] = useState(toText(initial?.min_players));
   const [maxPlayers, setMaxPlayers] = useState(toText(initial?.max_players));
   const [playingTime, setPlayingTime] = useState(toText(initial?.playing_time));
-  const [rating, setRating] = useState(toText(initial?.rating));
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [labelIds, setLabelIds] = useState<string[]>(initial?.labelIds ?? []);
   const [error, setError] = useState<string | null>(null);
+
+  // Artwork comes from BoardGameGeek and is not worth a text box: it is shown, and carried
+  // through untouched on save. "Refresh from BoardGameGeek" is how a picture changes.
+  const cover = initial?.image_url ?? null;
 
   const submit = () => {
     if (!name.trim()) {
       setError('A name is required.');
       return;
     }
-    const ratingValue = toNumber(rating);
-    if (ratingValue !== null && (ratingValue < 1 || ratingValue > 10)) {
-      setError('Rating must be between 1 and 10.');
-      return;
-    }
     setError(null);
 
     onSubmit({
       name: name.trim(),
-      // Preserve the BGG link when editing an imported game.
+      // Preserve the BGG link and artwork when editing an imported game.
       bgg_id: initial?.bgg_id ?? null,
-      image_url: imageUrl.trim() || null,
-      // Keep the BGG thumbnail only while the full image URL is unchanged.
-      thumbnail_url: imageUrl.trim() === (initial?.image_url ?? '') ? initial?.thumbnail_url ?? null : null,
+      image_url: cover,
+      thumbnail_url: initial?.thumbnail_url ?? null,
       year_published: toNumber(year),
       min_players: toNumber(minPlayers),
       max_players: toNumber(maxPlayers),
       playing_time: toNumber(playingTime),
-      rating: ratingValue,
       notes: notes.trim() || null,
       labelIds,
     });
@@ -75,9 +82,9 @@ export function GameForm({ initial, submitTitle, submitting = false, onSubmit }:
 
   return (
     <View style={styles.container}>
-      {imageUrl.trim() ? (
+      {cover ? (
         <Image
-          source={{ uri: imageUrl.trim() }}
+          source={{ uri: cover }}
           style={[styles.preview, { borderColor: theme.border }]}
           contentFit="contain"
           transition={150}
@@ -85,15 +92,8 @@ export function GameForm({ initial, submitTitle, submitting = false, onSubmit }:
       ) : null}
 
       <Field label="Name" value={name} onChangeText={setName} placeholder="Gloomhaven" />
-      <Field
-        label="Image URL"
-        value={imageUrl}
-        onChangeText={setImageUrl}
-        placeholder="https://…"
-        autoCapitalize="none"
-        autoCorrect={false}
-        hint="Filled in automatically when you import from BoardGameGeek."
-      />
+
+      {ratingSlot}
 
       <View style={styles.row}>
         <Field
@@ -128,13 +128,6 @@ export function GameForm({ initial, submitTitle, submitting = false, onSubmit }:
           containerStyle={styles.flex}
         />
       </View>
-
-      <Field
-        label="My rating (1-10)"
-        value={rating}
-        onChangeText={setRating}
-        keyboardType="number-pad"
-      />
 
       <Field
         label="Notes"

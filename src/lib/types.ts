@@ -73,7 +73,6 @@ export type Game = {
   min_players: number | null;
   max_players: number | null;
   playing_time: number | null;
-  rating: number | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -92,6 +91,20 @@ export type GameInput = {
   min_players?: number | null;
   max_players?: number | null;
   playing_time?: number | null;
-  rating?: number | null;
   notes?: string | null;
+};
+
+/**
+ * One person's opinion of one game.
+ *
+ * Ratings are personal, not a property of the game: everyone on the shelf keeps their own
+ * row, and everyone can see everyone else's. A row exists only while there is something to
+ * say — clearing both the stars and the heart deletes it.
+ */
+export type GameRating = {
+  game_id: string;
+  user_id: string;
+  /** 1-5, or null when they have hearted it without scoring it. */
+  stars: number | null;
+  hearted: boolean;
 };

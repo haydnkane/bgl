@@ -3,15 +3,19 @@ import { Image } from 'expo-image';
 import { Link } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { HeartToggle } from '@/components/heart-toggle';
 import { LabelChip } from '@/components/label-chip';
+import { StarRating } from '@/components/star-rating';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import type { GameWithLabels, Label } from '@/lib/types';
+import type { GameRating, GameWithLabels, Label } from '@/lib/types';
 
 type Props = {
   game: GameWithLabels;
   labels: Label[];
+  /** The signed-in user's own rating — the card shows theirs, not the shelf's average. */
+  rating?: GameRating | null;
 };
 
 /** Builds the "2-4" player range, or null when the player count is unknown. */
@@ -22,7 +26,7 @@ function metaLine(game: GameWithLabels): string | null {
   return min === max ? `${min}` : `${min}-${max}`;
 }
 
-export function GameCard({ game, labels }: Props) {
+export function GameCard({ game, labels, rating = null }: Props) {
   const theme = useTheme();
   const gameLabels = labels.filter((label) => game.labelIds.includes(label.id));
   const meta = metaLine(game);
@@ -58,10 +62,13 @@ export function GameCard({ game, labels }: Props) {
             </ThemedText>
           </View>
 
-          {game.rating ? (
-            <ThemedText type="small" themeColor="textSecondary">
-              {'★'.repeat(Math.round(game.rating / 2)).padEnd(5, '☆')} {game.rating}/10
-            </ThemedText>
+          {rating ? (
+            <View style={styles.rating}>
+              {rating.stars !== null ? (
+                <StarRating value={rating.stars} size={13} accessibilityName="Your rating" />
+              ) : null}
+              {rating.hearted ? <HeartToggle value size={14} /> : null}
+            </View>
           ) : null}
 
           {gameLabels.length ? (
@@ -106,6 +113,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   meta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+  },
+  rating: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.one,

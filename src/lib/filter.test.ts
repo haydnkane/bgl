@@ -1,8 +1,12 @@
-import { applyFilters, DEFAULT_FILTER, type FilterState } from './filter';
-import type { GameWithLabels } from './types';
+import { applyFilters, DEFAULT_FILTER, indexRatings, type FilterState } from './filter';
+import type { GameRating, GameWithLabels } from './types';
 
 const COOP = 'label-coop';
 const HEAVY = 'label-heavy';
+
+/** The signed-in user in these tests, and someone else on the same shelf. */
+const ME = 'user-1';
+const SAM = 'user-2';
 
 function makeGame(overrides: Partial<GameWithLabels> & { name: string }): GameWithLabels {
   return {
@@ -16,7 +20,6 @@ function makeGame(overrides: Partial<GameWithLabels> & { name: string }): GameWi
     min_players: null,
     max_players: null,
     playing_time: null,
-    rating: null,
     notes: null,
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
@@ -28,14 +31,12 @@ function makeGame(overrides: Partial<GameWithLabels> & { name: string }): GameWi
 const gloomhaven = makeGame({
   name: 'Gloomhaven',
   year_published: 2017,
-  rating: 9,
   created_at: '2024-03-01T00:00:00Z',
   labelIds: [COOP, HEAVY],
 });
 const pandemic = makeGame({
   name: 'Pandemic',
   year_published: 2008,
-  rating: 7,
   created_at: '2024-01-15T00:00:00Z',
   labelIds: [COOP],
 });
@@ -47,6 +48,23 @@ const azul = makeGame({
 });
 
 const library = [gloomhaven, pandemic, azul];
+
+function rate(overrides: Partial<GameRating> & { game_id: string; user_id: string }): GameRating {
+  return { stars: null, hearted: false, ...overrides };
+}
+
+/**
+ * Gloomhaven and Pandemic are mine, scored 5 and 4; Azul I have not rated at all. Sam has
+ * hearted Azul and scored Gloomhaven low, so his stars must never reach my sort.
+ */
+const ratingRows: GameRating[] = [
+  rate({ game_id: 'gloomhaven', user_id: ME, stars: 5, hearted: true }),
+  rate({ game_id: 'pandemic', user_id: ME, stars: 4 }),
+  rate({ game_id: 'azul', user_id: SAM, hearted: true }),
+  rate({ game_id: 'gloomhaven', user_id: SAM, stars: 1, hearted: true }),
+];
+
+const ratings = indexRatings(ratingRows, ME);
 
 function withState(overrides: Partial<FilterState>): FilterState {
   return { ...DEFAULT_FILTER, ...overrides };
@@ -122,8 +140,13 @@ describe('sorting', () => {
     ]);
   });
 
-  it('sorts by rating', () => {
-    const result = applyFilters(library, withState({ sortKey: 'rating', sortDirection: 'desc' }));
+  it('sorts by my own stars, not anyone else’s', () => {
+    // Sam gave Gloomhaven a single star; it still comes top, because the sort is mine.
+    const result = applyFilters(
+      library,
+      withState({ sortKey: 'rating', sortDirection: 'desc' }),
+      ratings
+    );
     expect(names(result)).toEqual(['Gloomhaven', 'Pandemic', 'Azul']);
   });
 
@@ -135,10 +158,10 @@ describe('sorting', () => {
     ]);
   });
 
-  it('keeps unrated games last in both directions', () => {
-    // Azul has no rating, so it must never outrank a rated game.
-    const asc = applyFilters(library, withState({ sortKey: 'rating', sortDirection: 'asc' }));
-    const desc = applyFilters(library, withState({ sortKey: 'rating', sortDirection: 'desc' }));
+  it('keeps games I have not rated last in both directions', () => {
+    // I never scored Azul, so it must never outrank a game I did.
+    const asc = applyFilters(library, withState({ sortKey: 'rating', sortDirection: 'asc' }), ratings);
+    const desc = applyFilters(library, withState({ sortKey: 'rating', sortDirection: 'desc' }), ratings);
     expect(asc[asc.length - 1].name).toBe('Azul');
     expect(desc[desc.length - 1].name).toBe('Azul');
   });
@@ -146,6 +169,45 @@ describe('sorting', () => {
   it('orders games that are all missing the sort value by name', () => {
     const unrated = [makeGame({ name: 'Zoo' }), makeGame({ name: 'Ark' })];
     expect(names(applyFilters(unrated, withState({ sortKey: 'rating' })))).toEqual(['Ark', 'Zoo']);
+  });
+});
+
+describe('hearted-by filtering', () => {
+  it('returns everything when nobody is selected', () => {
+    expect(applyFilters(library, withState({ heartedBy: [] }), ratings)).toHaveLength(3);
+  });
+
+  it('keeps only the games that person hearted', () => {
+    expect(names(applyFilters(library, withState({ heartedBy: [SAM] }), ratings))).toEqual([
+      'Azul',
+      'Gloomhaven',
+    ]);
+  });
+
+  it('a score without a heart is not a heart', () => {
+    // Pandemic is the game I scored but never hearted.
+    expect(names(applyFilters(library, withState({ heartedBy: [ME] }), ratings))).toEqual([
+      'Gloomhaven',
+    ]);
+  });
+
+  it('several people read as "or", without duplicating a game they both hearted', () => {
+    const result = applyFilters(library, withState({ heartedBy: [ME, SAM] }), ratings);
+    expect(names(result)).toEqual(['Azul', 'Gloomhaven']);
+  });
+
+  it('combines with the label and search filters', () => {
+    // Sam hearted Azul and Gloomhaven; only Gloomhaven is heavy.
+    const result = applyFilters(library, withState({ heartedBy: [SAM], labelIds: [HEAVY] }), ratings);
+    expect(names(result)).toEqual(['Gloomhaven']);
+  });
+
+  it('matches nothing for someone who has hearted nothing', () => {
+    expect(applyFilters(library, withState({ heartedBy: ['user-nobody'] }), ratings)).toEqual([]);
+  });
+
+  it('finds no hearts at all when the ratings have not loaded', () => {
+    expect(applyFilters(library, withState({ heartedBy: [SAM] }))).toEqual([]);
   });
 });
 

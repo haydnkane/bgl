@@ -9,6 +9,7 @@ import { normalizeUsername } from '@/lib/username';
 export const shelfKey = ['shelf'] as const;
 export const userShelfKey = (userId: string) => [...shelfKey, userId] as const;
 export const peopleKey = ['shelf-people'] as const;
+export const userPeopleKey = (userId: string) => [...peopleKey, userId] as const;
 
 /**
  * The signed-in user's place in the collection, or null if they have none yet.
@@ -44,12 +45,23 @@ export async function joinShelf(): Promise<string> {
   return data as string;
 }
 
-/** The allowlist: who may use the collection, and which of them have signed in. */
+/**
+ * The allowlist: who may use the collection, and which of them have signed in.
+ *
+ * Anyone on the shelf may call this — the settings screen uses it to hand out roles, but
+ * the library and game pages need it too, to put a name to each rating. `enabled` is for
+ * callers that additionally want to hold off until a role is known.
+ */
 export function useShelfPeople(enabled = true) {
+  const userId = useUserId();
+  // Read straight from the membership query rather than the LibraryProvider: that provider
+  // is built on this module, and importing it back would close a cycle.
+  const { data: membership } = useMyMembership();
   return useQuery({
-    queryKey: peopleKey,
-    // Only owners may call the RPC, so asking as anyone else is a guaranteed error.
-    enabled,
+    // Scoped to the user for the same reason the games key is: see queries/games.ts.
+    queryKey: userPeopleKey(userId ?? 'signed-out'),
+    // The RPC refuses anyone who is not on the shelf, so wait until membership is known.
+    enabled: enabled && membership != null,
     queryFn: async (): Promise<ShelfPerson[]> => {
       const { data, error } = await supabase.rpc('list_shelf_people');
       if (error) throw error;

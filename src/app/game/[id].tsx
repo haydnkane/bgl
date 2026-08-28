@@ -6,6 +6,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { Button } from '@/components/button';
 import { EmptyState } from '@/components/empty-state';
 import { GameForm, type GameFormValues } from '@/components/game-form';
+import { GameRatings } from '@/components/game-ratings';
 import { LabelChip } from '@/components/label-chip';
 import { ThemedText } from '@/components/themed-text';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
@@ -59,6 +60,8 @@ function ReadOnlyGame({ game, labels }: { game: GameWithLabels; labels: Label[] 
 
       <ThemedText type="subtitle">{game.name}</ThemedText>
 
+      <GameRatings gameId={game.id} />
+
       {gameLabels.length > 0 ? (
         <View style={styles.chips}>
           {gameLabels.map((label) => (
@@ -70,7 +73,6 @@ function ReadOnlyGame({ game, labels }: { game: GameWithLabels; labels: Label[] 
       {game.year_published ? <Detail label="Year" value={String(game.year_published)} /> : null}
       {players ? <Detail label="Players" value={players} /> : null}
       {game.playing_time ? <Detail label="Play time" value={`${game.playing_time} min`} /> : null}
-      {game.rating ? <Detail label="Rating" value={`${game.rating} / 10`} /> : null}
       {game.notes ? <Detail label="Notes" value={game.notes} /> : null}
     </>
   );
@@ -194,6 +196,7 @@ export default function GameDetailScreen() {
         initial={initial}
         submitTitle="Save changes"
         submitting={updateGame.isPending}
+        ratingSlot={<GameRatings gameId={game.id} />}
         onSubmit={save}
       />
 

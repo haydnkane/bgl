@@ -18,6 +18,8 @@ export const Colors = {
     tint: '#2F6FED',
     tintText: '#ffffff',
     danger: '#D93036',
+    star: '#E5892B',
+    heart: '#E93D82',
   },
   dark: {
     text: '#ffffff',
@@ -29,6 +31,8 @@ export const Colors = {
     tint: '#5C90FF',
     tintText: '#0B1220',
     danger: '#FF6369',
+    star: '#FFB224',
+    heart: '#FF8DC0',
   },
 } as const;
 

@@ -3,19 +3,35 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { LabelChip } from '@/components/label-chip';
 import { ThemedText } from '@/components/themed-text';
+import { UserHeartChip } from '@/components/user-heart-chip';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { SORT_OPTIONS, type FilterState, type SortKey } from '@/lib/filter';
 import type { Label } from '@/lib/types';
 
+/** A person who can have hearted something: on the shelf, and signed in at least once. */
+export type HeartFilterPerson = { userId: string; name: string };
+
 type Props = {
   labels: Label[];
+  /** Shown before the labels, current user first. Empty until the people list loads. */
+  people: HeartFilterPerson[];
   state: FilterState;
   onChange: (next: FilterState) => void;
 };
 
-export function FilterSortBar({ labels, state, onChange }: Props) {
+export function FilterSortBar({ labels, people, state, onChange }: Props) {
   const theme = useTheme();
+
+  const toggleHeartedBy = (userId: string) => {
+    const selected = state.heartedBy.includes(userId);
+    onChange({
+      ...state,
+      heartedBy: selected
+        ? state.heartedBy.filter((id) => id !== userId)
+        : [...state.heartedBy, userId],
+    });
+  };
 
   const toggleLabel = (id: string) => {
     const selected = state.labelIds.includes(id);
@@ -36,11 +52,19 @@ export function FilterSortBar({ labels, state, onChange }: Props) {
 
   return (
     <View style={styles.container}>
-      {labels.length > 0 ? (
+      {people.length > 0 || labels.length > 0 ? (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.row}>
+          {people.map((person) => (
+            <UserHeartChip
+              key={person.userId}
+              name={person.name}
+              selected={state.heartedBy.includes(person.userId)}
+              onPress={() => toggleHeartedBy(person.userId)}
+            />
+          ))}
           {labels.map((label) => (
             <LabelChip
               key={label.id}
