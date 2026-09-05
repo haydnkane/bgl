@@ -1,6 +1,6 @@
 import type { GameRating, GameWithLabels } from './types';
 
-export type SortKey = 'name' | 'rating' | 'created_at';
+export type SortKey = 'name' | 'rating' | 'bgg_rating' | 'created_at';
 export type SortDirection = 'asc' | 'desc';
 /**
  * How several selected pills combine, for labels and hearts alike: 'any' keeps a game that
@@ -40,6 +40,7 @@ export const MIN_STARS_OPTIONS: number[] = [3, 4, 5];
 export const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'name', label: 'Name' },
   { key: 'rating', label: 'My rating' },
+  { key: 'bgg_rating', label: 'BGG score' },
   { key: 'created_at', label: 'Date added' },
 ];
 
@@ -147,6 +148,9 @@ function sortValue(
     case 'rating':
       // "My rating" means the viewer's own stars; nobody else's opinion reorders their list.
       return ratings.myStars.get(game.id) ?? null;
+    case 'bgg_rating':
+      // Games never imported from BGG have no score, and sort last like any other null.
+      return game.bgg_rating;
     case 'created_at':
       return game.created_at;
   }

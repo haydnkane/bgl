@@ -33,12 +33,14 @@ const gloomhaven = makeGame({
   name: 'Gloomhaven',
   year_published: 2017,
   created_at: '2024-03-01T00:00:00Z',
+  bgg_rating: 8.6,
   labelIds: [COOP, HEAVY],
 });
 const pandemic = makeGame({
   name: 'Pandemic',
   year_published: 2008,
   created_at: '2024-01-15T00:00:00Z',
+  bgg_rating: 7.5,
   labelIds: [COOP],
 });
 const azul = makeGame({
@@ -142,6 +144,36 @@ describe('sorting', () => {
       ratings
     );
     expect(names(result)).toEqual(['Gloomhaven', 'Pandemic', 'Azul']);
+  });
+
+  it('sorts by the BGG score', () => {
+    // Azul was never imported from BGG, so it has no score to place.
+    expect(names(applyFilters(library, withState({ sortKey: 'bgg_rating' })))).toEqual([
+      'Pandemic',
+      'Gloomhaven',
+      'Azul',
+    ]);
+    expect(
+      names(applyFilters(library, withState({ sortKey: 'bgg_rating', sortDirection: 'desc' })))
+    ).toEqual(['Gloomhaven', 'Pandemic', 'Azul']);
+  });
+
+  it('keeps games with no BGG score last in both directions', () => {
+    const asc = applyFilters(library, withState({ sortKey: 'bgg_rating' }));
+    const desc = applyFilters(library, withState({ sortKey: 'bgg_rating', sortDirection: 'desc' }));
+    expect(asc[asc.length - 1].name).toBe('Azul');
+    expect(desc[desc.length - 1].name).toBe('Azul');
+  });
+
+  it('sorts by the crowd’s score, not the shelf’s', () => {
+    // I gave Gloomhaven 5 and Pandemic 4; BGG has them the same way round here, so flip
+    // one to prove the sort reads the game and not my stars.
+    const contrary = [
+      { ...gloomhaven, bgg_rating: 6.0 },
+      { ...pandemic, bgg_rating: 9.0 },
+    ];
+    const result = applyFilters(contrary, withState({ sortKey: 'bgg_rating', sortDirection: 'desc' }), ratings);
+    expect(names(result)).toEqual(['Pandemic', 'Gloomhaven']);
   });
 
   it('sorts by date added', () => {
