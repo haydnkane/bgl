@@ -75,6 +75,8 @@ export function GameForm({
       min_players: toNumber(minPlayers),
       max_players: toNumber(maxPlayers),
       playing_time: toNumber(playingTime),
+      // BGG's own score, like the artwork: shown, never typed, carried through on save.
+      bgg_rating: initial?.bgg_rating ?? null,
       notes: notes.trim() || null,
       labelIds,
     });

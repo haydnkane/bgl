@@ -40,6 +40,8 @@ type BggGameDetail = BggSearchResult & {
   min_players: number | null;
   max_players: number | null;
   playing_time: number | null;
+  /** BGG's community average out of 10, from ?stats=1. Null when nobody has voted. */
+  bgg_rating: number | null;
   description: string | null;
 };
 
@@ -80,6 +82,21 @@ function attrNumber(node: unknown): number | null {
   if (raw === undefined) return null;
   const parsed = Number(raw);
   return Number.isFinite(parsed) && parsed !== 0 ? parsed : null;
+}
+
+/**
+ * The community average out of ten, from the statistics block. Kept to two decimals — BGG
+ * reports many more, and no one reads a score to the fourth place.
+ *
+ * An unrated game reports 0, which attrNumber already discards as "no value": that is the
+ * right reading here, since a game nobody has voted on has no score rather than a zero.
+ */
+function ratingAverage(item: Record<string, unknown>): number | null {
+  const statistics = item.statistics as Record<string, unknown> | undefined;
+  const ratings = statistics?.ratings as Record<string, unknown> | undefined;
+  const average = attrNumber(ratings?.average);
+  if (average === null || average < 0 || average > 10) return null;
+  return Math.round(average * 100) / 100;
 }
 
 function attrText(node: unknown): string | null {
@@ -157,6 +174,7 @@ async function thing(id: string, token: string): Promise<BggGameDetail> {
     min_players: attrNumber(item.minplayers),
     max_players: attrNumber(item.maxplayers),
     playing_time: attrNumber(item.playingtime),
+    bgg_rating: ratingAverage(item),
     description: decodeOptional(
       typeof item.description === 'string' ? item.description : attrText(item.description)
     ),

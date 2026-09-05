@@ -26,10 +26,20 @@ function metaLine(game: GameWithLabels): string | null {
   return min === max ? `${min}` : `${min}-${max}`;
 }
 
+/**
+ * BGG's community average, to one decimal. Their own scale is out of ten, so it is shown
+ * that way rather than rescaled onto the five stars this shelf uses for personal ratings.
+ */
+function bggScore(game: GameWithLabels): string | null {
+  if (game.bgg_rating === null) return null;
+  return game.bgg_rating.toFixed(1);
+}
+
 export function GameCard({ game, labels, rating = null }: Props) {
   const theme = useTheme();
   const gameLabels = labels.filter((label) => game.labelIds.includes(label.id));
   const meta = metaLine(game);
+  const score = bggScore(game);
   const cover = game.thumbnail_url ?? game.image_url;
 
   return (
@@ -55,11 +65,23 @@ export function GameCard({ game, labels, rating = null }: Props) {
             {game.name}
           </ThemedText>
 
+          {/* The blank space keeps the row's height when a game has neither number,
+              so cards in a grid row stay aligned with each other. */}
           <View style={styles.meta}>
-            {meta ? <Ionicons name="person" size={13} color={theme.textSecondary} /> : null}
-            <ThemedText type="small" themeColor="textSecondary">
-              {meta ?? ' '}
-            </ThemedText>
+            <View style={styles.players}>
+              {meta ? <Ionicons name="person" size={13} color={theme.textSecondary} /> : null}
+              <ThemedText type="small" themeColor="textSecondary">
+                {meta ?? ' '}
+              </ThemedText>
+            </View>
+            {score ? (
+              <ThemedText
+                type="small"
+                themeColor="textSecondary"
+                accessibilityLabel={`BoardGameGeek score ${score} out of 10`}>
+                {score}
+              </ThemedText>
+            ) : null}
           </View>
 
           {rating ? (
@@ -117,7 +139,15 @@ const styles = StyleSheet.create({
   meta: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: Spacing.one,
+  },
+  players: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+    // Yields to the score rather than pushing it off the card on a narrow tile.
+    flexShrink: 1,
   },
   rating: {
     flexDirection: 'row',

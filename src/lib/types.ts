@@ -73,6 +73,11 @@ export type Game = {
   min_players: number | null;
   max_players: number | null;
   playing_time: number | null;
+  /**
+   * BoardGameGeek's community average out of 10, cached when the game was imported or
+   * refreshed. Nothing to do with {@link GameRating}, which is what this shelf thinks.
+   */
+  bgg_rating: number | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -91,6 +96,7 @@ export type GameInput = {
   min_players?: number | null;
   max_players?: number | null;
   playing_time?: number | null;
+  bgg_rating?: number | null;
   notes?: string | null;
 };
 

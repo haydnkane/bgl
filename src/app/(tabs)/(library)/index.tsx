@@ -90,7 +90,8 @@ export default function LibraryScreen() {
   const isFiltered =
     filter.search.trim().length > 0 ||
     filter.labelIds.length > 0 ||
-    filter.heartedBy.length > 0;
+    filter.heartedBy.length > 0 ||
+    filter.minStars !== null;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -162,7 +163,7 @@ export default function LibraryScreen() {
             <EmptyState
               icon="search-outline"
               title="Nothing matches"
-              message="Try a different search, or clear the label and loved-by filters."
+              message="Try a different search, or clear the label, loved-by and rating filters."
             />
           ) : (
             <EmptyState

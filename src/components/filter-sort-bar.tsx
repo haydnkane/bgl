@@ -2,11 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { LabelChip } from '@/components/label-chip';
+import { MinStarsChip } from '@/components/min-stars-chip';
 import { ThemedText } from '@/components/themed-text';
 import { UserHeartChip } from '@/components/user-heart-chip';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { SORT_OPTIONS, type FilterState, type SortKey } from '@/lib/filter';
+import { MIN_STARS_OPTIONS, SORT_OPTIONS, type FilterState, type SortKey } from '@/lib/filter';
 import type { Label } from '@/lib/types';
 
 /** A person who can have hearted something: on the shelf, and signed in at least once. */
@@ -41,6 +42,14 @@ export function FilterSortBar({ labels, people, state, onChange }: Props) {
     });
   };
 
+  // The thresholds nest, so they behave as one choice: a second tap on the active one clears it.
+  const toggleMinStars = (minStars: number) => {
+    onChange({ ...state, minStars: state.minStars === minStars ? null : minStars });
+  };
+
+  // The mode only says something once a group has two pills in it; one pill matches the same either way.
+  const showMatchMode = state.labelIds.length > 1 || state.heartedBy.length > 1;
+
   const setSort = (key: SortKey) => {
     // Tapping the active sort flips direction; tapping a new one starts ascending.
     onChange(
@@ -52,29 +61,36 @@ export function FilterSortBar({ labels, people, state, onChange }: Props) {
 
   return (
     <View style={styles.container}>
-      {people.length > 0 || labels.length > 0 ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.row}>
-          {people.map((person) => (
-            <UserHeartChip
-              key={person.userId}
-              name={person.name}
-              selected={state.heartedBy.includes(person.userId)}
-              onPress={() => toggleHeartedBy(person.userId)}
-            />
-          ))}
-          {labels.map((label) => (
-            <LabelChip
-              key={label.id}
-              label={label}
-              selected={state.labelIds.includes(label.id)}
-              onPress={() => toggleLabel(label.id)}
-            />
-          ))}
-        </ScrollView>
-      ) : null}
+      {/* Unconditional: the star pills stand on their own, even on a shelf with no labels or people. */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.row}>
+        {people.map((person) => (
+          <UserHeartChip
+            key={person.userId}
+            name={person.name}
+            selected={state.heartedBy.includes(person.userId)}
+            onPress={() => toggleHeartedBy(person.userId)}
+          />
+        ))}
+        {labels.map((label) => (
+          <LabelChip
+            key={label.id}
+            label={label}
+            selected={state.labelIds.includes(label.id)}
+            onPress={() => toggleLabel(label.id)}
+          />
+        ))}
+        {MIN_STARS_OPTIONS.map((minStars) => (
+          <MinStarsChip
+            key={minStars}
+            minStars={minStars}
+            selected={state.minStars === minStars}
+            onPress={() => toggleMinStars(minStars)}
+          />
+        ))}
+      </ScrollView>
 
       <View style={styles.controlsRow}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
@@ -107,10 +123,10 @@ export function FilterSortBar({ labels, people, state, onChange }: Props) {
           })}
         </ScrollView>
 
-        {state.labelIds.length > 1 ? (
+        {showMatchMode ? (
           <Pressable
             onPress={() =>
-              onChange({ ...state, labelMode: state.labelMode === 'any' ? 'all' : 'any' })
+              onChange({ ...state, matchMode: state.matchMode === 'any' ? 'all' : 'any' })
             }
             style={({ pressed }) => [
               styles.sortChip,
@@ -118,7 +134,7 @@ export function FilterSortBar({ labels, people, state, onChange }: Props) {
               pressed && styles.pressed,
             ]}>
             <ThemedText type="small" themeColor="textSecondary">
-              Match {state.labelMode}
+              Match {state.matchMode}
             </ThemedText>
           </Pressable>
         ) : null}

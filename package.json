@@ -47,7 +47,7 @@
     "android": "expo start --android",
     "web": "expo start --web",
     "lint": "expo lint",
-    "build:android": "eas build --platform android --profile preview",
+    "build:android": "npx eas-cli build --platform android --profile preview",
     "test": "jest",
     "typecheck": "tsc --noEmit"
   },

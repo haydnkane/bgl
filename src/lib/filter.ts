@@ -1,19 +1,25 @@
 import type { GameRating, GameWithLabels } from './types';
 
-export type SortKey = 'name' | 'year_published' | 'rating' | 'created_at';
+export type SortKey = 'name' | 'rating' | 'created_at';
 export type SortDirection = 'asc' | 'desc';
-/** 'any' = game has at least one selected label, 'all' = it has every selected label. */
-export type LabelMode = 'any' | 'all';
+/**
+ * How several selected pills combine, for labels and hearts alike: 'any' keeps a game that
+ * matches at least one of them, 'all' only one that matches every one.
+ */
+export type MatchMode = 'any' | 'all';
 
 export type FilterState = {
   search: string;
   labelIds: string[];
-  labelMode: LabelMode;
-  /**
-   * User ids whose hearted games to show. Several at once reads as "or": a game is kept if
-   * any of them hearted it, which is what tapping two people's pills is asking for.
-   */
+  /** Applies to the label pills and the hearted-by pills together, as one shared choice. */
+  matchMode: MatchMode;
+  /** User ids whose hearted games to show, combined per {@link FilterState.matchMode}. */
   heartedBy: string[];
+  /**
+   * Keep only games somebody on the shelf scored this highly or better. One threshold at a
+   * time: the options nest, so "4+ and 3+" would only ever mean 4+.
+   */
+  minStars: number | null;
   sortKey: SortKey;
   sortDirection: SortDirection;
 };
@@ -21,15 +27,18 @@ export type FilterState = {
 export const DEFAULT_FILTER: FilterState = {
   search: '',
   labelIds: [],
-  labelMode: 'any',
+  matchMode: 'any',
   heartedBy: [],
+  minStars: null,
   sortKey: 'name',
   sortDirection: 'asc',
 };
 
+/** The star thresholds offered as pills, strongest last. */
+export const MIN_STARS_OPTIONS: number[] = [3, 4, 5];
+
 export const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'name', label: 'Name' },
-  { key: 'year_published', label: 'Year' },
   { key: 'rating', label: 'My rating' },
   { key: 'created_at', label: 'Date added' },
 ];
@@ -43,28 +52,39 @@ export type RatingIndex = {
   myStars: ReadonlyMap<string, number>;
   /** The games each person has hearted, by user id. Feeds the hearted-by pills. */
   heartsByUser: ReadonlyMap<string, ReadonlySet<string>>;
+  /**
+   * The highest score anyone on the shelf gave, by game id. Feeds the star-threshold pills,
+   * which ask whether *someone* rated a game well, not whether the viewer did.
+   */
+  bestStars: ReadonlyMap<string, number>;
 };
 
 /** What a screen uses before the ratings have loaded, and what the sort falls back to. */
 export const NO_RATINGS: RatingIndex = {
   myStars: new Map(),
   heartsByUser: new Map(),
+  bestStars: new Map(),
 };
 
 /** Builds the index above. Pure; call it from a useMemo keyed on the rows and the viewer. */
 export function indexRatings(rows: GameRating[], viewerId: string | null): RatingIndex {
   const myStars = new Map<string, number>();
   const heartsByUser = new Map<string, Set<string>>();
+  const bestStars = new Map<string, number>();
 
   for (const row of rows) {
-    if (row.stars !== null && row.user_id === viewerId) myStars.set(row.game_id, row.stars);
+    if (row.stars !== null) {
+      if (row.user_id === viewerId) myStars.set(row.game_id, row.stars);
+      const best = bestStars.get(row.game_id);
+      if (best === undefined || row.stars > best) bestStars.set(row.game_id, row.stars);
+    }
     if (!row.hearted) continue;
     const hearted = heartsByUser.get(row.user_id) ?? new Set<string>();
     hearted.add(row.game_id);
     heartsByUser.set(row.user_id, hearted);
   }
 
-  return { myStars, heartsByUser };
+  return { myStars, heartsByUser, bestStars };
 }
 
 function matchesSearch(game: GameWithLabels, search: string): boolean {
@@ -73,7 +93,7 @@ function matchesSearch(game: GameWithLabels, search: string): boolean {
   return game.name.toLowerCase().includes(needle);
 }
 
-function matchesLabels(game: GameWithLabels, labelIds: string[], mode: LabelMode): boolean {
+function matchesLabels(game: GameWithLabels, labelIds: string[], mode: MatchMode): boolean {
   if (labelIds.length === 0) return true;
   const owned = new Set(game.labelIds);
   return mode === 'all'
@@ -81,9 +101,21 @@ function matchesLabels(game: GameWithLabels, labelIds: string[], mode: LabelMode
     : labelIds.some((id) => owned.has(id));
 }
 
-function matchesHearts(game: GameWithLabels, userIds: string[], ratings: RatingIndex): boolean {
+function matchesHearts(
+  game: GameWithLabels,
+  userIds: string[],
+  mode: MatchMode,
+  ratings: RatingIndex
+): boolean {
   if (userIds.length === 0) return true;
-  return userIds.some((userId) => ratings.heartsByUser.get(userId)?.has(game.id) ?? false);
+  const hearted = (userId: string) => ratings.heartsByUser.get(userId)?.has(game.id) ?? false;
+  // 'all' asks for the games this whole group agrees on — everyone's pick, not anyone's.
+  return mode === 'all' ? userIds.every(hearted) : userIds.some(hearted);
+}
+
+function matchesStars(game: GameWithLabels, minStars: number | null, ratings: RatingIndex): boolean {
+  if (minStars === null) return true;
+  return (ratings.bestStars.get(game.id) ?? 0) >= minStars;
 }
 
 /**
@@ -112,8 +144,6 @@ function sortValue(
   switch (key) {
     case 'name':
       return game.name;
-    case 'year_published':
-      return game.year_published;
     case 'rating':
       // "My rating" means the viewer's own stars; nobody else's opinion reorders their list.
       return ratings.myStars.get(game.id) ?? null;
@@ -131,8 +161,9 @@ export function applyFilters(
   const filtered = games.filter(
     (game) =>
       matchesSearch(game, state.search) &&
-      matchesLabels(game, state.labelIds, state.labelMode) &&
-      matchesHearts(game, state.heartedBy, ratings)
+      matchesLabels(game, state.labelIds, state.matchMode) &&
+      matchesHearts(game, state.heartedBy, state.matchMode, ratings) &&
+      matchesStars(game, state.minStars, ratings)
   );
 
   return filtered.sort((a, b) => {

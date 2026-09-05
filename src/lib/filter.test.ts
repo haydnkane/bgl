@@ -20,6 +20,7 @@ function makeGame(overrides: Partial<GameWithLabels> & { name: string }): GameWi
     min_players: null,
     max_players: null,
     playing_time: null,
+    bgg_rating: null,
     notes: null,
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
@@ -62,6 +63,8 @@ const ratingRows: GameRating[] = [
   rate({ game_id: 'pandemic', user_id: ME, stars: 4 }),
   rate({ game_id: 'azul', user_id: SAM, hearted: true }),
   rate({ game_id: 'gloomhaven', user_id: SAM, stars: 1, hearted: true }),
+  // Sam's 3 on Azul is the only score it has, and nobody but me has scored Pandemic.
+  rate({ game_id: 'azul', user_id: SAM, stars: 3, hearted: true }),
 ];
 
 const ratings = indexRatings(ratingRows, ME);
@@ -98,12 +101,12 @@ describe('label filtering', () => {
   });
 
   it('"any" matches games carrying at least one selected label', () => {
-    const result = applyFilters(library, withState({ labelIds: [COOP, HEAVY], labelMode: 'any' }));
+    const result = applyFilters(library, withState({ labelIds: [COOP, HEAVY], matchMode: 'any' }));
     expect(names(result)).toEqual(['Gloomhaven', 'Pandemic']);
   });
 
   it('"all" requires every selected label', () => {
-    const result = applyFilters(library, withState({ labelIds: [COOP, HEAVY], labelMode: 'all' }));
+    const result = applyFilters(library, withState({ labelIds: [COOP, HEAVY], matchMode: 'all' }));
     expect(names(result)).toEqual(['Gloomhaven']);
   });
 
@@ -129,15 +132,6 @@ describe('sorting', () => {
     expect(
       names(applyFilters(library, withState({ sortKey: 'name', sortDirection: 'desc' })))
     ).toEqual(['Pandemic', 'Gloomhaven', 'Azul']);
-  });
-
-  it('sorts by year, falling back to name for ties', () => {
-    // Azul and Gloomhaven share 2017, so name breaks the tie.
-    expect(names(applyFilters(library, withState({ sortKey: 'year_published' })))).toEqual([
-      'Pandemic',
-      'Azul',
-      'Gloomhaven',
-    ]);
   });
 
   it('sorts by my own stars, not anyone else’s', () => {
@@ -191,9 +185,35 @@ describe('hearted-by filtering', () => {
     ]);
   });
 
-  it('several people read as "or", without duplicating a game they both hearted', () => {
+  it('"any" reads several people as "or", without duplicating a game they both hearted', () => {
     const result = applyFilters(library, withState({ heartedBy: [ME, SAM] }), ratings);
     expect(names(result)).toEqual(['Azul', 'Gloomhaven']);
+  });
+
+  it('"all" keeps only the games everyone selected hearted', () => {
+    // Sam hearted Azul and Gloomhaven, I hearted only Gloomhaven: that is the overlap.
+    const result = applyFilters(
+      library,
+      withState({ heartedBy: [ME, SAM], matchMode: 'all' }),
+      ratings
+    );
+    expect(names(result)).toEqual(['Gloomhaven']);
+  });
+
+  it('the mode applies to hearts and labels at the same time', () => {
+    // 'all' on both: only Gloomhaven is hearted by us both and carries both labels.
+    const result = applyFilters(
+      library,
+      withState({ heartedBy: [ME, SAM], labelIds: [COOP, HEAVY], matchMode: 'all' }),
+      ratings
+    );
+    expect(names(result)).toEqual(['Gloomhaven']);
+  });
+
+  it('one person matches the same in either mode', () => {
+    const any = applyFilters(library, withState({ heartedBy: [SAM] }), ratings);
+    const all = applyFilters(library, withState({ heartedBy: [SAM], matchMode: 'all' }), ratings);
+    expect(names(all)).toEqual(names(any));
   });
 
   it('combines with the label and search filters', () => {
@@ -208,6 +228,63 @@ describe('hearted-by filtering', () => {
 
   it('finds no hearts at all when the ratings have not loaded', () => {
     expect(applyFilters(library, withState({ heartedBy: [SAM] }))).toEqual([]);
+  });
+});
+
+describe('minimum-star filtering', () => {
+  it('returns everything when no threshold is set', () => {
+    expect(applyFilters(library, withState({ minStars: null }), ratings)).toHaveLength(3);
+  });
+
+  it('keeps games anyone rated at or above the threshold', () => {
+    // Gloomhaven 5 (me), Pandemic 4 (me), Azul 3 (Sam).
+    expect(names(applyFilters(library, withState({ minStars: 3 }), ratings))).toEqual([
+      'Azul',
+      'Gloomhaven',
+      'Pandemic',
+    ]);
+    expect(names(applyFilters(library, withState({ minStars: 4 }), ratings))).toEqual([
+      'Gloomhaven',
+      'Pandemic',
+    ]);
+    expect(names(applyFilters(library, withState({ minStars: 5 }), ratings))).toEqual([
+      'Gloomhaven',
+    ]);
+  });
+
+  it('takes the best score, not the viewer’s', () => {
+    // Sam scored Gloomhaven 1; the 5 from someone else still carries it past every threshold.
+    const strangerOnly = indexRatings(ratingRows, null);
+    expect(names(applyFilters(library, withState({ minStars: 5 }), strangerOnly))).toEqual([
+      'Gloomhaven',
+    ]);
+  });
+
+  it('drops games nobody has scored', () => {
+    const unscored = [makeGame({ name: 'Zoo' })];
+    expect(applyFilters(unscored, withState({ minStars: 3 }), ratings)).toEqual([]);
+  });
+
+  it('a heart without a score does not clear the bar', () => {
+    // Only Sam's stars put Azul over 3; hearts alone say nothing about a score.
+    const heartsOnly = indexRatings(
+      [rate({ game_id: 'azul', user_id: SAM, hearted: true })],
+      ME
+    );
+    expect(applyFilters(library, withState({ minStars: 3 }), heartsOnly)).toEqual([]);
+  });
+
+  it('combines with the label, heart and search filters', () => {
+    const result = applyFilters(
+      library,
+      withState({ minStars: 4, labelIds: [COOP], heartedBy: [ME] }),
+      ratings
+    );
+    expect(names(result)).toEqual(['Gloomhaven']);
+  });
+
+  it('finds nothing when the ratings have not loaded', () => {
+    expect(applyFilters(library, withState({ minStars: 3 }))).toEqual([]);
   });
 });
 

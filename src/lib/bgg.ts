@@ -13,6 +13,8 @@ export type BggGameDetail = BggSearchResult & {
   min_players: number | null;
   max_players: number | null;
   playing_time: number | null;
+  /** Community average out of 10, or null when nobody has voted on it. */
+  bgg_rating: number | null;
   description: string | null;
 };
 
@@ -68,5 +70,6 @@ export function bggDetailToGameInput(detail: BggGameDetail): GameInput {
     min_players: detail.min_players,
     max_players: detail.max_players,
     playing_time: detail.playing_time,
+    bgg_rating: detail.bgg_rating,
   };
 }
