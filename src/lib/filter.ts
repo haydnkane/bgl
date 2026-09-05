@@ -37,12 +37,24 @@ export const DEFAULT_FILTER: FilterState = {
 /** The star thresholds offered as pills, strongest last. */
 export const MIN_STARS_OPTIONS: number[] = [3, 4, 5];
 
-export const SORT_OPTIONS: { key: SortKey; label: string }[] = [
-  { key: 'name', label: 'Name' },
-  { key: 'rating', label: 'My rating' },
-  { key: 'bgg_rating', label: 'BGG score' },
-  { key: 'created_at', label: 'Date added' },
+/**
+ * The sorts offered as chips, each with the direction it opens on.
+ *
+ * Only names read naturally A-Z. For a score or a date the interesting end is the top —
+ * the best rated, the most recently added — so those open descending and a second tap
+ * flips them.
+ */
+export const SORT_OPTIONS: { key: SortKey; label: string; defaultDirection: SortDirection }[] = [
+  { key: 'name', label: 'Name', defaultDirection: 'asc' },
+  { key: 'rating', label: 'My rating', defaultDirection: 'desc' },
+  { key: 'bgg_rating', label: 'BGG score', defaultDirection: 'desc' },
+  { key: 'created_at', label: 'Date added', defaultDirection: 'desc' },
 ];
+
+/** The direction a sort opens on when it is first tapped. */
+export function defaultDirectionFor(key: SortKey): SortDirection {
+  return SORT_OPTIONS.find((option) => option.key === key)?.defaultDirection ?? 'asc';
+}
 
 /**
  * Ratings arranged for the two questions the list asks of them, so neither costs a scan of

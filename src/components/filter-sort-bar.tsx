@@ -7,7 +7,13 @@ import { ThemedText } from '@/components/themed-text';
 import { UserHeartChip } from '@/components/user-heart-chip';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { MIN_STARS_OPTIONS, SORT_OPTIONS, type FilterState, type SortKey } from '@/lib/filter';
+import {
+  defaultDirectionFor,
+  MIN_STARS_OPTIONS,
+  SORT_OPTIONS,
+  type FilterState,
+  type SortKey,
+} from '@/lib/filter';
 import type { Label } from '@/lib/types';
 
 /** A person who can have hearted something: on the shelf, and signed in at least once. */
@@ -51,11 +57,12 @@ export function FilterSortBar({ labels, people, state, onChange }: Props) {
   const showMatchMode = state.labelIds.length > 1 || state.heartedBy.length > 1;
 
   const setSort = (key: SortKey) => {
-    // Tapping the active sort flips direction; tapping a new one starts ascending.
+    // Tapping the active sort flips direction; tapping a new one opens on whichever end of
+    // it is the interesting one.
     onChange(
       key === state.sortKey
         ? { ...state, sortDirection: state.sortDirection === 'asc' ? 'desc' : 'asc' }
-        : { ...state, sortKey: key, sortDirection: 'asc' }
+        : { ...state, sortKey: key, sortDirection: defaultDirectionFor(key) }
     );
   };
 

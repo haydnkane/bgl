@@ -1,4 +1,11 @@
-import { applyFilters, DEFAULT_FILTER, indexRatings, type FilterState } from './filter';
+import {
+  applyFilters,
+  DEFAULT_FILTER,
+  defaultDirectionFor,
+  indexRatings,
+  SORT_OPTIONS,
+  type FilterState,
+} from './filter';
 import type { GameRating, GameWithLabels } from './types';
 
 const COOP = 'label-coop';
@@ -195,6 +202,23 @@ describe('sorting', () => {
   it('orders games that are all missing the sort value by name', () => {
     const unrated = [makeGame({ name: 'Zoo' }), makeGame({ name: 'Ark' })];
     expect(names(applyFilters(unrated, withState({ sortKey: 'rating' })))).toEqual(['Ark', 'Zoo']);
+  });
+});
+
+describe('default sort direction', () => {
+  it('opens names A-Z', () => {
+    expect(defaultDirectionFor('name')).toBe('asc');
+  });
+
+  it('opens every other sort at its top end', () => {
+    // Best rated and most recently added are what you want to see first.
+    for (const { key } of SORT_OPTIONS.filter((option) => option.key !== 'name')) {
+      expect(defaultDirectionFor(key)).toBe('desc');
+    }
+  });
+
+  it('agrees with the shelf’s opening state', () => {
+    expect(defaultDirectionFor(DEFAULT_FILTER.sortKey)).toBe(DEFAULT_FILTER.sortDirection);
   });
 });
 
